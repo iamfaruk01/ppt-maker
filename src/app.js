@@ -137,9 +137,11 @@ const fullSlideQHeading   = document.getElementById('full-slide-q-heading');
 const fullSlideQContent   = document.getElementById('full-slide-q-content');
 const fullSlideOptsCont   = document.getElementById('full-slide-opts-container');
 const fullSlideFooterSub  = document.getElementById('full-slide-footer-sub');
-const fullSlideFooterNum  = document.getElementById('full-slide-footer-num');
 const btnFullPrevSlide    = document.getElementById('btn-full-prev-slide');
 const btnFullNextSlide    = document.getElementById('btn-full-next-slide');
+const fullSlideCounter    = document.getElementById('full-slide-counter');
+const btnSlideFloatPrev   = document.getElementById('btn-slide-float-prev');
+const btnSlideFloatNext   = document.getElementById('btn-slide-float-next');
 const fullCarouselDotsRow = document.getElementById('full-carousel-dots-row');
 
 // Header & Settings
@@ -522,6 +524,12 @@ function updateCarouselButtons() {
   if (btnNextSlide) btnNextSlide.disabled = isLast;
   if (btnFullPrevSlide) btnFullPrevSlide.disabled = isFirst;
   if (btnFullNextSlide) btnFullNextSlide.disabled = isLast;
+  if (btnSlideFloatPrev) btnSlideFloatPrev.disabled = isFirst;
+  if (btnSlideFloatNext) btnSlideFloatNext.disabled = isLast;
+
+  if (fullSlideCounter) {
+    fullSlideCounter.textContent = `${currentSlideIdx + 1} / ${questions.length}`;
+  }
 
   // Update dots active class
   document.querySelectorAll('.carousel-dot').forEach((dot) => {
@@ -574,6 +582,14 @@ btnFullPrevSlide?.addEventListener('click', () => {
 });
 
 btnFullNextSlide?.addEventListener('click', () => {
+  if (currentSlideIdx < questions.length - 1) renderSlide(currentSlideIdx + 1);
+});
+
+btnSlideFloatPrev?.addEventListener('click', () => {
+  if (currentSlideIdx > 0) renderSlide(currentSlideIdx - 1);
+});
+
+btnSlideFloatNext?.addEventListener('click', () => {
   if (currentSlideIdx < questions.length - 1) renderSlide(currentSlideIdx + 1);
 });
 
