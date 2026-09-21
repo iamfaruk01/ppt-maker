@@ -723,36 +723,56 @@ btnPreviewFull?.addEventListener('click', openFullPreview);
 btnCloseFullPreview?.addEventListener('click', closeFullPreview);
 
 // ── Theme Toggle (Light / Dark) ─────────────────────────────────────────────
-function initTheme() {
-  const saved = localStorage.getItem('ppt_maker_theme') || 'light';
-  applyTheme(saved);
+async function initTheme() {
+  let theme = 'light';
+  try {
+    const cfg = await window.electronAPI.getConfig();
+    if (cfg && cfg.theme) {
+      theme = cfg.theme;
+    } else {
+      const local = localStorage.getItem('ppt_maker_theme');
+      if (local) theme = local;
+    }
+  } catch (_) {
+    const local = localStorage.getItem('ppt_maker_theme');
+    if (local) theme = local;
+  }
+  applyTheme(theme, false);
 }
 
-function applyTheme(theme) {
+function applyTheme(theme, saveToConfig = true) {
   if (theme === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
-    themeMoonIcon.innerHTML = `
-      <circle cx="12" cy="12" r="4"/>
-      <path d="M12 2v2"/>
-      <path d="M12 20v2"/>
-      <path d="m4.93 4.93 1.41 1.41"/>
-      <path d="m17.66 17.66 1.41 1.41"/>
-      <path d="M2 12h2"/>
-      <path d="M20 12h2"/>
-      <path d="m6.34 17.66-1.41 1.41"/>
-      <path d="m19.07 4.93-1.41 1.41"/>
-    `;
+    if (themeMoonIcon) {
+      themeMoonIcon.innerHTML = `
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M12 2v2"/>
+        <path d="M12 20v2"/>
+        <path d="m4.93 4.93 1.41 1.41"/>
+        <path d="m17.66 17.66 1.41 1.41"/>
+        <path d="M2 12h2"/>
+        <path d="M20 12h2"/>
+        <path d="m6.34 17.66-1.41 1.41"/>
+        <path d="m19.07 4.93-1.41 1.41"/>
+      `;
+    }
     localStorage.setItem('ppt_maker_theme', 'dark');
   } else {
     document.documentElement.removeAttribute('data-theme');
-    themeMoonIcon.innerHTML = `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`;
+    if (themeMoonIcon) {
+      themeMoonIcon.innerHTML = `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`;
+    }
     localStorage.setItem('ppt_maker_theme', 'light');
+  }
+
+  if (saveToConfig && window.electronAPI?.saveConfig) {
+    window.electronAPI.saveConfig({ theme }).catch(() => {});
   }
 }
 
 btnThemeToggle?.addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
-  applyTheme(current === 'dark' ? 'light' : 'dark');
+  applyTheme(current === 'dark' ? 'light' : 'dark', true);
 });
 
 // ── Settings & Live Sync Modal ───────────────────────────────────────────────

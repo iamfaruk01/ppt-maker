@@ -45,12 +45,14 @@ function loadConfig() {
       return JSON.parse(fs.readFileSync(defaultP, 'utf8'));
     } catch (_) {}
   }
-  return { github_repo: '', auto_sync: true, last_synced: null };
+  return { github_repo: '', auto_sync: true, last_synced: null, theme: 'light' };
 }
 
 function saveConfig(cfg) {
   try {
-    fs.writeFileSync(getConfigPath(), JSON.stringify(cfg, null, 2), 'utf8');
+    const existing = loadConfig();
+    const merged = { ...existing, ...cfg };
+    fs.writeFileSync(getConfigPath(), JSON.stringify(merged, null, 2), 'utf8');
     return true;
   } catch (e) {
     console.error('Failed to save config:', e);
@@ -282,7 +284,9 @@ ipcMain.handle('config:get', () => loadConfig());
 
 ipcMain.handle('config:save', (event, cfg) => {
   const ok = saveConfig(cfg);
-  if (ok) syncLatestScript();
+  if (ok && (cfg.github_repo !== undefined || cfg.github_token !== undefined)) {
+    syncLatestScript();
+  }
   return ok;
 });
 

@@ -5,6 +5,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>JSON to PPT</title>
   <link rel="stylesheet" href="src/styles.css">
+  <!-- Immediate Theme Initializer -->
+  <script>
+    (function() {
+      try {
+        const saved = localStorage.getItem('ppt_maker_theme');
+        if (saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else if (saved === 'light') {
+          document.documentElement.removeAttribute('data-theme');
+        }
+      } catch (_) {}
+    })();
+  </script>
   <!-- MathJax Configuration -->
   <script>
     window.MathJax = {
