@@ -234,6 +234,7 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     res.append(make_r(GREEK[greek_cmd]))
                 elif cmd in ['times', 'cdot', 'pm', 'mp', 'leq', 'geq', 'approx', 'neq',
                              'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow',
+                             'to', 'gets',
                              'leftrightarrow', 'Leftrightarrow',
                              'infty', 'div', 'partial', 'nabla', 'degree',
                              'propto', 'sim', 'simeq', 'equiv', 'cong',
@@ -253,6 +254,7 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         'times': '×', 'cdot': '·', 'pm': '±', 'mp': '∓',
                         'leq': '≤', 'geq': '≥', 'approx': '≈', 'neq': '≠', 'ne': '≠',
                         'rightarrow': '→', 'leftarrow': '←', 'infty': '∞',
+                        'to': '→', 'gets': '←',
                         'Rightarrow': '⇒', 'Leftarrow': '⇐',
                         'leftrightarrow': '↔', 'Leftrightarrow': '⇔',
                         'div': '÷', 'partial': '∂', 'nabla': '∇', 'degree': '°',
