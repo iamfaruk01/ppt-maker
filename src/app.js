@@ -137,6 +137,7 @@ const fullSlideQHeading   = document.getElementById('full-slide-q-heading');
 const fullSlideQContent   = document.getElementById('full-slide-q-content');
 const fullSlideOptsCont   = document.getElementById('full-slide-opts-container');
 const fullSlideFooterSub  = document.getElementById('full-slide-footer-sub');
+const fullSlideFooterNum  = document.getElementById('full-slide-footer-num');
 const btnFullPrevSlide    = document.getElementById('btn-full-prev-slide');
 const btnFullNextSlide    = document.getElementById('btn-full-next-slide');
 const fullSlideCounter    = document.getElementById('full-slide-counter');
