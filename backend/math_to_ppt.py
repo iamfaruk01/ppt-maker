@@ -180,12 +180,16 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     i = j + 1
             while i < n and s[i].isspace(): i += 1
             rad_str, i = extract_braced_arg(i)
-            rad_omml = "".join(parse_math_tokens(rad_str, color_hex, sz))
-            if deg_str:
-                deg_omml = "".join(parse_math_tokens(deg_str, color_hex, sz))
-                res.append(f'<m:rad><m:deg>{deg_omml}</m:deg><m:e>{rad_omml}</m:e></m:rad>')
+            if rad_str.strip():
+                rad_omml = "".join(parse_math_tokens(rad_str, color_hex, sz))
+                if deg_str:
+                    deg_omml = "".join(parse_math_tokens(deg_str, color_hex, sz))
+                    res.append(f'<m:rad><m:deg>{deg_omml}</m:deg><m:e>{rad_omml}</m:e></m:rad>')
+                else:
+                    res.append(f'<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e>{rad_omml}</m:e></m:rad>')
             else:
-                res.append(f'<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e>{rad_omml}</m:e></m:rad>')
+                # Empty radicand (\sqrt{}) — render just the √ character to avoid invalid OMML
+                res.append(make_r('√'))
             continue
 
         # Commands: Greek, symbols, functions
@@ -215,7 +219,15 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     txt_arg, i = extract_braced_arg(i)
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{txt_arg}</m:t></m:r>')
                 else:
+                    # Unknown command — render as \cmd text, and consume any following {arg} as (arg)
                     res.append(make_r('\\' + cmd))
+                    while i < n and s[i].isspace(): i += 1
+                    if i < n and s[i] == '{':
+                        arg, i = extract_braced_arg(i)
+                        if arg:
+                            res.append(make_r('{'))
+                            res.extend(parse_math_tokens(arg, color_hex, sz))
+                            res.append(make_r('}'))
                 continue
             else:
                 i += 1
