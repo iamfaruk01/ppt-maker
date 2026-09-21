@@ -203,6 +203,11 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
             elif has_sub:
                 sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
                 res.append(f'<m:sSub><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub></m:sSub>')
+
+            # If the base was a math function (like sin, cos, tan, log), add a thin space before arguments like \theta or x
+            if '<m:nor/>' in base_omml:
+                if i < n and s[i] not in ['^', '_', ' ', '(', '[', ',', ')', ']', '+', '-', '=', '*', '/']:
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
             continue
 
         # Top-level braced group: {x+y}
@@ -345,6 +350,8 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                              'det', 'gcd', 'deg', 'dim', 'hom', 'ker',
                              'min', 'max', 'sup', 'inf', 'arg', 'Pr']:
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{cmd}</m:t></m:r>')
+                    if i < n and s[i] not in ['^', '_', ' ', '(', '[', ',', ')', ']', '+', '-', '=', '*', '/']:
+                        res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
                 elif cmd in ['left', 'right']:
                     pass
                 elif cmd in ['mathrm', 'mathbf', 'text', 'mathit']:
