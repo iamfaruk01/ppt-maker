@@ -244,7 +244,11 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                              'oplus', 'otimes', 'circ', 'bullet',
                              'll', 'gg', 'lll', 'ggg', 'ne',
                              'geqq', 'leqq', 'dagger', 'ddagger',
-                             'star', 'ast', 'checkmark']:
+                             'star', 'ast', 'checkmark',
+                             'lvert', 'rvert', 'lVert', 'rVert',
+                             'lceil', 'rceil', 'lfloor', 'rfloor',
+                             'langle', 'rangle', 'lbrace', 'rbrace',
+                             'ldots', 'cdots', 'vdots', 'ddots']:
                     sym_dict = {
                         'times': '×', 'cdot': '·', 'pm': '±', 'mp': '∓',
                         'leq': '≤', 'geq': '≥', 'approx': '≈', 'neq': '≠', 'ne': '≠',
@@ -261,6 +265,11 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         'll': '≪', 'gg': '≫', 'lll': '⋘', 'ggg': '⋙',
                         'geqq': '≧', 'leqq': '≦', 'dagger': '†', 'ddagger': '‡',
                         'star': '⋆', 'ast': '∗', 'checkmark': '✓',
+                        # Delimiters
+                        'lvert': '|', 'rvert': '|', 'lVert': '‖', 'rVert': '‖',
+                        'lceil': '⌈', 'rceil': '⌉', 'lfloor': '⌊', 'rfloor': '⌋',
+                        'langle': '⟨', 'rangle': '⟩', 'lbrace': '{', 'rbrace': '}',
+                        'ldots': '…', 'cdots': '⋯', 'vdots': '⋮', 'ddots': '⋱',
                     }
                     res.append(make_r(sym_dict.get(cmd, cmd)))
                 elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'lim', 'exp']:
@@ -272,8 +281,9 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     txt_arg, i = extract_braced_arg(i)
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{txt_arg}</m:t></m:r>')
                 else:
-                    # Unknown command — render as \cmd text, and consume any following {arg} as (arg)
+                    # Unknown command — render as \cmd text, and consume any following {arg}
                     res.append(make_r('\\' + cmd))
+                    saved_i = i
                     while i < n and s[i].isspace(): i += 1
                     if i < n and s[i] == '{':
                         arg, i = extract_braced_arg(i)
@@ -281,6 +291,8 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                             res.append(make_r('{'))
                             res.extend(parse_math_tokens(arg, color_hex, sz))
                             res.append(make_r('}'))
+                    else:
+                        i = saved_i  # restore: don't eat whitespace before non-brace
                 continue
             else:
                 i += 1
