@@ -196,75 +196,44 @@
           </div>
         </div>
         <div class="step-body">
-          <div class="step-3-grid">
-            <!-- Left: Carousel Slide Preview -->
-            <div class="carousel-box">
-              <div class="carousel-row">
-                <button class="carousel-nav-btn" id="btn-prev-slide" title="Previous question">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                </button>
-                
-                <div class="slide-canvas" id="slide-canvas">
-                  <div class="slide-bg-decor-tr"></div>
-                  <div class="slide-bg-decor-br"></div>
-                  <div class="slide-header-exam" id="slide-exam">Class XII · Final Exam 2025</div>
-                  <div class="slide-q-heading" id="slide-q-heading">Question 1:</div>
-                  <div class="slide-question-content" id="slide-q-content">
-                    Loading question...
-                  </div>
-                  <div class="slide-options-container" id="slide-opts-container"></div>
-                  <div class="slide-footer-row">
-                    <span id="slide-footer-sub">Physics</span>
-                    <span id="slide-footer-num">1 / 1</span>
-                  </div>
+          <div class="step-3-content-wrapper">
+            <!-- Stats Panel -->
+            <div class="stats-grid-panel">
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 </div>
-
-                <button class="carousel-nav-btn" id="btn-next-slide" title="Next question">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
+                <div class="stat-num" id="stat-total-slides">0</div>
+                <div class="stat-label">Total Slides</div>
               </div>
 
-              <!-- Carousel Pagination Dots -->
-              <div class="carousel-dots-row" id="carousel-dots-row"></div>
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                </div>
+                <div class="stat-num" id="stat-total-questions">0</div>
+                <div class="stat-label">Questions</div>
+              </div>
+
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+                </div>
+                <div class="stat-num" id="stat-subject">Physics</div>
+                <div class="stat-label">Subject</div>
+              </div>
+
+              <div class="stat-item">
+                <div class="stat-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+                </div>
+                <div class="stat-num" id="stat-exam">Class XII · 2025</div>
+                <div class="stat-label">Exam</div>
+              </div>
             </div>
 
-            <!-- Right: Stats & Action Buttons -->
-            <div class="step-3-actions-col">
-              <div class="stats-grid-panel">
-                <div class="stat-item">
-                  <div class="stat-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  </div>
-                  <div class="stat-num" id="stat-total-slides">20</div>
-                  <div class="stat-label">Total Slides</div>
-                </div>
-
-                <div class="stat-item">
-                  <div class="stat-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
-                  </div>
-                  <div class="stat-num" id="stat-total-questions">20</div>
-                  <div class="stat-label">Questions</div>
-                </div>
-
-                <div class="stat-item">
-                  <div class="stat-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-                  </div>
-                  <div class="stat-num" id="stat-subject">Physics</div>
-                  <div class="stat-label">Subject</div>
-                </div>
-
-                <div class="stat-item">
-                  <div class="stat-icon">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
-                  </div>
-                  <div class="stat-num" id="stat-exam">Class XII · 2025</div>
-                  <div class="stat-label">Exam</div>
-                </div>
-              </div>
-
-              <!-- Primary Download Button -->
+            <!-- Action Buttons -->
+            <div class="step-3-btns-row">
               <button class="btn-download-main" id="btn-download-final">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -274,23 +243,22 @@
                 <span id="btn-download-final-text">Download PPT</span>
               </button>
 
-              <!-- Secondary Preview Full PPT Button -->
               <button class="btn-preview-full" id="btn-preview-full">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
                   <circle cx="12" cy="12" r="3"/>
                 </svg>
                 <span>Preview Full PPT</span>
               </button>
+            </div>
 
-              <!-- Success Alert Banner -->
-              <div class="alert-success-badge" id="alert-success-banner">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-                <span>PPT generated successfully!</span>
-              </div>
+            <!-- Success Alert Banner -->
+            <div class="alert-success-badge" id="alert-success-banner">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+              <span>PPT generated successfully!</span>
             </div>
           </div>
         </div>
