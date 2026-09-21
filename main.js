@@ -169,17 +169,24 @@ function getRunnerCommand() {
 // ── Window Creation ───────────────────────────────────────────────────────────
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 1260,
-    height: 840,
+    width: 1366,
+    height: 768,
     minWidth: 980,
     minHeight: 650,
     backgroundColor: '#0f0f13',
     title: 'PPT Maker',
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false
     }
+  });
+
+  mainWindow.maximize();
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
   });
 
   mainWindow.loadFile('index.html');
