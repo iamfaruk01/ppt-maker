@@ -709,6 +709,7 @@ function openFullPreview() {
   if (fullEditorCode) fullEditorCode.innerHTML = highlightJson(jsonObj);
 
   // Render slide in preview
+  renderCarouselDots();
   renderSlide(currentSlideIdx);
 }
 
