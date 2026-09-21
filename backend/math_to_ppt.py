@@ -785,7 +785,7 @@ def set_run_font(r, font_name, size=None, bold=False, italic=False, color=None):
     rPr.append(cs)
     rPr.append(ea)
 
-def add_paragraph_runs(p, text, font_size=None):
+def add_paragraph_runs(p, text, font_size=None, is_question_start=False):
     """Appends styled runs to paragraph p, handling Assamese, English, and inline $math$ with OMML."""
     # Wrap bare LaTeX commands (e.g. \frac{m}{s} outside $) into $...$
     text = wrap_bare_latex(text)
@@ -798,9 +798,11 @@ def add_paragraph_runs(p, text, font_size=None):
             sz_pt = font_size
     sz_val = int(sz_pt * 100)
 
+    first_text = True
     for tok in tokens:
         if not tok: continue
         if tok.startswith('$') and tok.endswith('$'):
+            first_text = False
             # Inline math
             math_expr = tok[1:-1].strip()
             # Try native OMML with horizontal fraction bar
@@ -814,11 +816,28 @@ def add_paragraph_runs(p, text, font_size=None):
                 set_run_font(r, 'Cambria Math', size=font_size or Pt(21), italic=True, color=ACCENT)
         else:
             # Normal text (Assamese and English)
-            r = p.add_run()
             has_as = is_assamese(tok)
-            r.text = tok
             sz = font_size or Pt(22 if has_as else 21)
             col = WHITE if has_as else LGRAY
+
+            # Highlight question prefix like "Q1.", "Q2.", etc. in bold ACCENT
+            if is_question_start and first_text:
+                m_q = re.match(r'^(Q\d+\.)\s*(.*)', tok)
+                if m_q:
+                    r_q = p.add_run()
+                    r_q.text = m_q.group(1) + ' '
+                    set_run_font(r_q, 'Banikanta', size=sz, bold=True, color=ACCENT)
+                    first_text = False
+                    remainder = m_q.group(2)
+                    if remainder:
+                        r = p.add_run()
+                        r.text = remainder
+                        set_run_font(r, 'Banikanta', size=sz, color=col)
+                    continue
+
+            first_text = False
+            r = p.add_run()
+            r.text = tok
             set_run_font(r, 'Banikanta', size=sz, color=col)
 
 def generate(data, output_path):
@@ -850,6 +869,16 @@ def generate(data, output_path):
         raw_options = q.get('options', [])
         options  = [strip_citations(o) for o in raw_options]
         is_mcq   = q.get('is_mcq', len(options) > 0)
+
+        # Determine question number and prefix (e.g. "Q1.", "Q2.", "Q3.")
+        q_num = q.get('id')
+        if q_num is None or str(q_num).strip() == '':
+            q_num = idx + 1
+        q_prefix = f"Q{q_num}."
+
+        # Clean existing prefix if present to prevent double numbering ("Q1. Q1." or "Q1. 1.")
+        clean_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*|\d+[\.:\-\)])\s*', '', raw_text, flags=re.IGNORECASE).strip()
+        raw_text = f"{q_prefix} {clean_text}"
 
         # Separate $$display$$ equations from text
         blocks = []
@@ -950,9 +979,9 @@ def generate(data, output_path):
                     if not line_s:
                         continue
                     p = tf.paragraphs[0] if first_p else tf.add_paragraph()
-                    first_p = False
                     p.space_after = Pt(6)
-                    add_paragraph_runs(p, line_s, font_size=q_font_size)
+                    add_paragraph_runs(p, line_s, font_size=q_font_size, is_question_start=first_p)
+                    first_p = False
             elif btype == 'display':
                 display_eqs.append(bcontent)
 
