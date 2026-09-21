@@ -6,7 +6,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // File dialogs & Explorer
   selectDirectory: (opts) => ipcRenderer.invoke('dialog:selectDirectory', opts),
+  saveFile: (opts) => ipcRenderer.invoke('dialog:saveFile', opts),
   showInFolder: (filePath) => ipcRenderer.invoke('shell:showInFolder', filePath),
+  openPath: (filePath) => ipcRenderer.invoke('shell:openPath', filePath),
   
   // GitHub Live Script Sync & Config
   getConfig: () => ipcRenderer.invoke('config:get'),

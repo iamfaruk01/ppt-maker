@@ -28,14 +28,70 @@ CRITICAL RULES:
 5. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
 6. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
 
+// ── Sample Data ─────────────────────────────────────────────────────────────
+const SAMPLE_PHYSICS = {
+  subject: "Physics",
+  exam_label: "Class XII · Final Exam 2025",
+  questions: [
+    {
+      id: 1,
+      question: "If the external force on a body is zero, then which of the following is zero?",
+      is_mcq: true,
+      options: [
+        "Speed",
+        "Acceleration",
+        "Displacement",
+        "Velocity"
+      ],
+      answer: "b"
+    },
+    {
+      id: 2,
+      question: "The dimensional formula of force is:",
+      is_mcq: true,
+      options: [
+        "[M L T^-2]",
+        "[M L^2 T^-2]",
+        "[M T^-1]",
+        "[M L T^-1]"
+      ],
+      answer: "a"
+    },
+    {
+      id: 3,
+      question: "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$",
+      is_mcq: true,
+      options: [
+        "100 J",
+        "50 J",
+        "200 J",
+        "25 J"
+      ]
+    }
+  ]
+};
+
 // ── State ───────────────────────────────────────────────────────────────────
 let questions = [];
+let metaInfo = { subject: 'Physics', exam_label: 'Class XII · Final Exam 2025' };
+let currentSlideIdx = 0;
 let lastGeneratedFile = null;
 let activeStep = 1;
+let currentRawParsedObj = null;
 
 // ── DOM References ──────────────────────────────────────────────────────────
+// Views
+const viewWizard          = document.getElementById('view-wizard');
+const viewFullPreview     = document.getElementById('view-full-preview');
+const headerWizardActions = document.getElementById('header-wizard-actions');
+const headerPreviewActions= document.getElementById('header-preview-actions');
+
+// Step Accordion
 const stepCards           = [1, 2, 3].map(i => document.getElementById(`step-card-${i}`));
 const stepHeaders         = [1, 2, 3].map(i => document.getElementById(`step-header-${i}`));
+const stepTitle1          = document.getElementById('step-title-1');
+const stepTitle2          = document.getElementById('step-title-2');
+const stepTitle3          = document.getElementById('step-title-3');
 const stepSubtitle1       = document.getElementById('step-subtitle-1');
 const stepSubtitle2       = document.getElementById('step-subtitle-2');
 const stepSubtitle3       = document.getElementById('step-subtitle-3');
@@ -50,19 +106,41 @@ const btnQuickSample      = document.getElementById('btn-quick-sample');
 const btnGenerateDirect   = document.getElementById('btn-generate-direct');
 const btnGenerateDirectText = document.getElementById('btn-generate-direct-text');
 
-// Step 3
-const statusSummary       = document.getElementById('status-summary-text');
-const step3ReadyBox       = document.getElementById('step-3-ready-box');
-const downloadFileName    = document.getElementById('download-file-name');
-const downloadFileMeta    = document.getElementById('download-file-meta');
-const btnOpenFileExplorer = document.getElementById('btn-open-file-explorer');
-const btnSaveJson         = document.getElementById('btn-save-json');
+// Step 3 Carousel
+const btnPrevSlide        = document.getElementById('btn-prev-slide');
+const btnNextSlide        = document.getElementById('btn-next-slide');
 const slideCanvas         = document.getElementById('slide-canvas');
+const slideExam           = document.getElementById('slide-exam');
+const slideQHeading       = document.getElementById('slide-q-heading');
 const slideQContent       = document.getElementById('slide-q-content');
 const slideOptsCont       = document.getElementById('slide-opts-container');
+const slideFooterSub      = document.getElementById('slide-footer-sub');
 const slideFooterNum      = document.getElementById('slide-footer-num');
-const btnGeneratePpt      = document.getElementById('btn-generate-ppt');
-const btnGenerateText     = document.getElementById('btn-generate-text');
+const carouselDotsRow     = document.getElementById('carousel-dots-row');
+
+// Step 3 Stats & Actions
+const statTotalSlides     = document.getElementById('stat-total-slides');
+const statTotalQuestions  = document.getElementById('stat-total-questions');
+const statSubject         = document.getElementById('stat-subject');
+const statExam            = document.getElementById('stat-exam');
+const btnDownloadFinal    = document.getElementById('btn-download-final');
+const btnPreviewFull      = document.getElementById('btn-preview-full');
+
+// Full Preview Mode Elements
+const btnCloseFullPreview = document.getElementById('btn-close-full-preview');
+const btnDownloadPreview  = document.getElementById('btn-download-preview');
+const fullEditorLines     = document.getElementById('full-editor-lines');
+const fullEditorCode      = document.getElementById('full-editor-code');
+const fullSlideCanvas     = document.getElementById('full-slide-canvas');
+const fullSlideExam       = document.getElementById('full-slide-exam');
+const fullSlideQHeading   = document.getElementById('full-slide-q-heading');
+const fullSlideQContent   = document.getElementById('full-slide-q-content');
+const fullSlideOptsCont   = document.getElementById('full-slide-opts-container');
+const fullSlideFooterSub  = document.getElementById('full-slide-footer-sub');
+const fullSlideFooterNum  = document.getElementById('full-slide-footer-num');
+const btnFullPrevSlide    = document.getElementById('btn-full-prev-slide');
+const btnFullNextSlide    = document.getElementById('btn-full-next-slide');
+const fullCarouselDotsRow = document.getElementById('full-carousel-dots-row');
 
 // Header & Settings
 const btnSyncPill         = document.getElementById('btn-sync-pill');
@@ -122,42 +200,45 @@ btnCopyPrompt?.addEventListener('click', async () => {
     `;
     setTimeout(() => {
       btnCopyPrompt.innerHTML = origHtml;
-      // Mark step 1 completed (green badge) and update subtitle (matching screenshot 2!)
+      // Mark step 1 completed (green badge) and show subtitle (Screenshot 2)
       stepCards[0].classList.add('completed');
       if (stepSubtitle1) {
+        stepSubtitle1.style.display = 'block';
         stepSubtitle1.textContent = 'Prompt copied! Now paste it into any AI and get the JSON.';
+      }
+      if (stepSubtitle2) {
+        stepSubtitle2.style.display = 'block';
+        stepSubtitle2.textContent = 'Paste the JSON generated by AI below.';
+      }
+      if (stepSubtitle3) {
+        stepSubtitle3.style.display = 'block';
+        stepSubtitle3.textContent = 'Your presentation will be ready to download.';
       }
       openStep(2);
       if (textareaJson) textareaJson.focus();
-    }, 450);
+    }, 400);
   } catch (err) {
     alert('Clipboard error: ' + err.message);
   }
 });
 
 // ── Step 2: Presets & JSON Parsing ──────────────────────────────────────────
-const SAMPLE_PHYSICS = {
-  subject: "Physics",
-  exam_label: "Class XII · Final Exam",
-  questions: [
-    {
-      id: 1,
-      question: "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$",
-      is_mcq: true,
-      options: ["100 J", "50 J", "200 J", "25 J"]
-    },
-    {
-      id: 2,
-      question: "এটা $q = 1.6 \\times 10^{-19}$ C আধান $v = 2 \\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\n\nA charge $q = 1.6 \\times 10^{-19}$ C moves with velocity $v = 2 \\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\sin\\theta$",
-      is_mcq: true,
-      options: ["$1.6 \\times 10^{-13}$ N", "$3.2 \\times 10^{-13}$ N", "$0.8 \\times 10^{-13}$ N", "0 N"]
-    }
-  ]
-};
-
 btnQuickSample?.addEventListener('click', () => {
   textareaJson.value = JSON.stringify(SAMPLE_PHYSICS, null, 2);
+  if (stepSubtitle2) {
+    stepSubtitle2.style.display = 'block';
+    stepSubtitle2.textContent = 'JSON detected! Ready to generate your PPT.';
+  }
   textareaJson.focus();
+});
+
+textareaJson?.addEventListener('input', () => {
+  if (textareaJson.value.trim().length > 10) {
+    if (stepSubtitle2) {
+      stepSubtitle2.style.display = 'block';
+      stepSubtitle2.textContent = 'JSON detected! Ready to generate your PPT.';
+    }
+  }
 });
 
 function stripCitations(text) {
@@ -197,7 +278,9 @@ function parseAndLoad(rawText) {
 
   if (Array.isArray(parsed)) {
     rawQuestions = parsed;
+    currentRawParsedObj = { questions: parsed };
   } else if (parsed && typeof parsed === 'object') {
+    currentRawParsedObj = parsed;
     if (Array.isArray(parsed.questions)) rawQuestions = parsed.questions;
     if (parsed.subject) subject = String(parsed.subject);
     if (parsed.exam_label) examLabel = String(parsed.exam_label);
@@ -221,10 +304,15 @@ function parseAndLoad(rawText) {
     };
   });
 
-  return { subject: subject || 'Physics', exam_label: examLabel || '' };
+  metaInfo = {
+    subject: subject || 'Physics',
+    exam_label: examLabel || 'Class XII · 2025'
+  };
+
+  return metaInfo;
 }
 
-// ── Shared Generation Logic ─────────────────────────────────────────────────
+// ── PPT Generation Logic ────────────────────────────────────────────────────
 async function triggerGenerate() {
   const text = textareaJson.value.trim();
   if (!text) {
@@ -235,35 +323,23 @@ async function triggerGenerate() {
   const parseResult = parseAndLoad(text);
   if (!parseResult) return;
 
-  // Ask for output folder
-  let saveDir;
-  try {
-    saveDir = await window.electronAPI.selectDirectory({ title: 'Select Output Folder for PowerPoint' });
-  } catch (e) {
-    console.error(e);
-  }
-  if (!saveDir) return;
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  // Generate directly into app temporary / output directory
+  const timestamp = Date.now();
   const subClean = (parseResult.subject || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fullPath = `${saveDir}\\${subClean}_${timestamp}.pptx`;
   const fileName = `${subClean}_${timestamp}.pptx`;
 
-  // Update button states to loading
+  // Update button states
   if (btnGenerateDirect) btnGenerateDirect.disabled = true;
   if (btnGenerateDirectText) btnGenerateDirectText.textContent = 'Generating...';
-  if (btnGeneratePpt) btnGeneratePpt.disabled = true;
-  if (btnGenerateText) btnGenerateText.textContent = 'Generating...';
 
   const payload = {
-    subject: parseResult.subject || 'Physics',
-    exam_label: parseResult.exam_label || '',
+    subject: metaInfo.subject,
+    exam_label: metaInfo.exam_label,
     questions: questions.map(q => ({
       question: q.question,
       is_mcq: q.is_mcq,
       options: q.is_mcq ? q.options : []
-    })),
-    _output: fullPath
+    }))
   };
 
   try {
@@ -271,27 +347,40 @@ async function triggerGenerate() {
     if (result && result.success) {
       lastGeneratedFile = result.output;
 
-      // Mark Step 1 & 2 completed with green checkmarks
+      // Mark Step 1 & 2 completed with green checkmarks (Screenshot 3)
       stepCards[0].classList.add('completed');
-      stepCards[1].classList.add('completed');
-
-      // Update Step 3
-      if (stepSubtitle3) stepSubtitle3.textContent = 'Your presentation is ready!';
-      if (statusSummary) {
-        statusSummary.textContent = `Generated ${questions.length} slides with authentic Assamese & LaTeX formulas.`;
+      if (stepSubtitle1) {
+        stepSubtitle1.style.display = 'block';
+        stepSubtitle1.textContent = 'Prompt copied! Now paste it into any AI and get the JSON.';
       }
-      if (downloadFileName) downloadFileName.textContent = fileName;
-      if (downloadFileMeta) downloadFileMeta.textContent = `${questions.length} Slides · Saved in ${saveDir}`;
-      if (step3ReadyBox) step3ReadyBox.style.display = 'flex';
 
-      // Render slide preview
-      renderSlidePreview();
+      stepCards[1].classList.add('completed');
+      if (stepTitle2) stepTitle2.textContent = '2. Paste JSON from AI';
+      if (stepSubtitle2) {
+        stepSubtitle2.style.display = 'block';
+        stepSubtitle2.textContent = 'JSON detected! Ready to generate your PPT.';
+      }
+
+      // Step 3 active
+      if (stepTitle3) stepTitle3.textContent = 'Download PPT';
+      if (stepSubtitle3) {
+        stepSubtitle3.style.display = 'block';
+        stepSubtitle3.textContent = 'Your presentation is ready!';
+      }
+
+      // Populate Stats
+      if (statTotalSlides) statTotalSlides.textContent = questions.length;
+      if (statTotalQuestions) statTotalQuestions.textContent = questions.length;
+      if (statSubject) statSubject.textContent = metaInfo.subject;
+      if (statExam) statExam.textContent = metaInfo.exam_label;
+
+      // Render carousel
+      currentSlideIdx = 0;
+      renderCarouselDots();
+      renderSlide(0);
 
       // Open Step 3
       openStep(3);
-
-      // Auto-reveal in Windows Explorer
-      await window.electronAPI.showInFolder(result.output);
 
     } else {
       alert('PowerPoint Generation Error:\n' + (result?.error || 'Unknown failure.'));
@@ -301,25 +390,12 @@ async function triggerGenerate() {
   } finally {
     if (btnGenerateDirect) btnGenerateDirect.disabled = false;
     if (btnGenerateDirectText) btnGenerateDirectText.textContent = 'Generate PPT';
-    if (btnGeneratePpt) btnGeneratePpt.disabled = false;
-    if (btnGenerateText) btnGenerateText.textContent = 'Generate & Download PPT';
   }
 }
 
-// Button in Step 2: "Generate PPT →"
 btnGenerateDirect?.addEventListener('click', triggerGenerate);
 
-// Button in Step 3: "Generate & Download PPT"
-btnGeneratePpt?.addEventListener('click', triggerGenerate);
-
-// "Show in Folder" button in Step 3
-btnOpenFileExplorer?.addEventListener('click', async () => {
-  if (lastGeneratedFile) {
-    await window.electronAPI.showInFolder(lastGeneratedFile);
-  }
-});
-
-// ── Step 3: Slide Preview & JSON Export ─────────────────────────────────────
+// ── Slide Formatting & MathJax ──────────────────────────────────────────────
 function escHtml(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -343,16 +419,9 @@ function parseSegments(text) {
   return segs;
 }
 
-function renderSlidePreview() {
-  if (!slideCanvas) return;
-  const q = questions[0];
-  if (!q) {
-    slideQContent.innerHTML = '<span style="color: #64748b; font-style: italic;">No questions loaded yet.</span>';
-    slideOptsCont.innerHTML = '';
-    return;
-  }
-
-  const paragraphs = q.question.split(/\n\s*\n/);
+function formatQuestionHtml(rawQuestion) {
+  if (!rawQuestion) return '';
+  const paragraphs = rawQuestion.split(/\n\s*\n/);
   let contentHtml = '';
 
   paragraphs.forEach((p) => {
@@ -373,63 +442,269 @@ function renderSlidePreview() {
     });
     contentHtml += '<div style="height: 6px;"></div>';
   });
+  return contentHtml;
+}
 
-  slideQContent.innerHTML = contentHtml;
-
-  if (q.is_mcq && q.options.some(o => o && o.trim())) {
-    let optsHtml = '';
-    ['A', 'B', 'C', 'D'].forEach((lbl, i) => {
-      const optVal = q.options[i] ? q.options[i].trim() : '';
-      if (!optVal) return;
-      const segs = parseSegments(optVal);
-      let optTextHtml = '';
-      segs.forEach(([t, c]) => {
-        if (t === 'text') {
-          optTextHtml += escHtml(c);
-        } else if (t === 'inline' || t === 'display') {
-          optTextHtml += `\\(${escHtml(c)}\\)`;
-        }
-      });
-      optsHtml += `
-        <div class="slide-option-item">
-          <b>(${lbl})</b>
-          <span>${optTextHtml}</span>
-        </div>
-      `;
+function formatOptionsHtml(q) {
+  if (!q.is_mcq || !q.options || !q.options.some(o => o && o.trim())) {
+    return '';
+  }
+  let optsHtml = '';
+  const labels = ['(a)', '(b)', '(c)', '(d)'];
+  labels.forEach((lbl, i) => {
+    const optVal = q.options[i] ? q.options[i].trim() : '';
+    if (!optVal) return;
+    const segs = parseSegments(optVal);
+    let optTextHtml = '';
+    segs.forEach(([t, c]) => {
+      if (t === 'text') {
+        optTextHtml += escHtml(c);
+      } else if (t === 'inline' || t === 'display') {
+        optTextHtml += `\\(${escHtml(c)}\\)`;
+      }
     });
-    slideOptsCont.innerHTML = optsHtml;
-  } else {
-    slideOptsCont.innerHTML = '';
+    optsHtml += `
+      <div class="slide-option-item">
+        <b>${lbl}</b>
+        <span>${optTextHtml}</span>
+      </div>
+    `;
+  });
+  return optsHtml;
+}
+
+function renderSlide(idx) {
+  if (!questions || questions.length === 0) return;
+  if (idx < 0) idx = 0;
+  if (idx >= questions.length) idx = questions.length - 1;
+  currentSlideIdx = idx;
+
+  const q = questions[idx];
+  const qHtml = formatQuestionHtml(q.question);
+  const optsHtml = formatOptionsHtml(q);
+
+  // Step 3 Carousel Slide
+  if (slideCanvas) {
+    if (slideExam) slideExam.textContent = metaInfo.exam_label || '';
+    if (slideQHeading) slideQHeading.textContent = `Question ${idx + 1}:`;
+    if (slideQContent) slideQContent.innerHTML = qHtml;
+    if (slideOptsCont) slideOptsCont.innerHTML = optsHtml;
+    if (slideFooterSub) slideFooterSub.textContent = metaInfo.subject || 'Physics';
+    if (slideFooterNum) slideFooterNum.textContent = `${idx + 1} / ${questions.length}`;
+
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([slideCanvas]).catch(() => {});
+    }
   }
 
-  if (window.MathJax && window.MathJax.typesetPromise) {
-    window.MathJax.typesetPromise([slideCanvas]).catch(() => {});
+  // Full Preview Slide
+  if (fullSlideCanvas) {
+    if (fullSlideExam) fullSlideExam.textContent = metaInfo.exam_label || '';
+    if (fullSlideQHeading) fullSlideQHeading.textContent = `Question ${idx + 1}:`;
+    if (fullSlideQContent) fullSlideQContent.innerHTML = qHtml;
+    if (fullSlideOptsCont) fullSlideOptsCont.innerHTML = optsHtml;
+    if (fullSlideFooterSub) fullSlideFooterSub.textContent = metaInfo.subject || 'Physics';
+    if (fullSlideFooterNum) fullSlideFooterNum.textContent = `${idx + 1} / ${questions.length}`;
+
+    if (window.MathJax && window.MathJax.typesetPromise) {
+      window.MathJax.typesetPromise([fullSlideCanvas]).catch(() => {});
+    }
+  }
+
+  updateCarouselButtons();
+}
+
+function updateCarouselButtons() {
+  const isFirst = currentSlideIdx === 0;
+  const isLast = currentSlideIdx === questions.length - 1;
+
+  if (btnPrevSlide) btnPrevSlide.disabled = isFirst;
+  if (btnNextSlide) btnNextSlide.disabled = isLast;
+  if (btnFullPrevSlide) btnFullPrevSlide.disabled = isFirst;
+  if (btnFullNextSlide) btnFullNextSlide.disabled = isLast;
+
+  // Update dots active class
+  document.querySelectorAll('.carousel-dot').forEach((dot) => {
+    const dIdx = parseInt(dot.getAttribute('data-idx'), 10);
+    if (dIdx === currentSlideIdx) {
+      dot.classList.add('active');
+    } else {
+      dot.classList.remove('active');
+    }
+  });
+}
+
+function renderCarouselDots() {
+  const total = questions.length;
+  let dotsHtml = '';
+  for (let i = 0; i < total; i++) {
+    dotsHtml += `<div class="carousel-dot ${i === currentSlideIdx ? 'active' : ''}" data-idx="${i}"></div>`;
+  }
+
+  if (carouselDotsRow) {
+    carouselDotsRow.innerHTML = dotsHtml;
+    carouselDotsRow.querySelectorAll('.carousel-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        renderSlide(parseInt(dot.getAttribute('data-idx'), 10));
+      });
+    });
+  }
+
+  if (fullCarouselDotsRow) {
+    fullCarouselDotsRow.innerHTML = dotsHtml;
+    fullCarouselDotsRow.querySelectorAll('.carousel-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        renderSlide(parseInt(dot.getAttribute('data-idx'), 10));
+      });
+    });
   }
 }
 
-btnSaveJson?.addEventListener('click', () => {
-  if (!questions.length) {
-    alert('No questions loaded to save.');
+// Carousel Nav Listeners
+btnPrevSlide?.addEventListener('click', () => {
+  if (currentSlideIdx > 0) renderSlide(currentSlideIdx - 1);
+});
+
+btnNextSlide?.addEventListener('click', () => {
+  if (currentSlideIdx < questions.length - 1) renderSlide(currentSlideIdx + 1);
+});
+
+btnFullPrevSlide?.addEventListener('click', () => {
+  if (currentSlideIdx > 0) renderSlide(currentSlideIdx - 1);
+});
+
+btnFullNextSlide?.addEventListener('click', () => {
+  if (currentSlideIdx < questions.length - 1) renderSlide(currentSlideIdx + 1);
+});
+
+// Arrow Keys Navigation
+window.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'ArrowLeft') {
+    if (currentSlideIdx > 0) renderSlide(currentSlideIdx - 1);
+  } else if (e.key === 'ArrowRight') {
+    if (currentSlideIdx < questions.length - 1) renderSlide(currentSlideIdx + 1);
+  }
+});
+
+// ── Download Presentation ───────────────────────────────────────────────────
+async function handleDownloadPpt() {
+  if (!lastGeneratedFile) {
+    if (!questions.length) {
+      alert('Please paste questions JSON and click Generate PPT first.');
+      return;
+    }
+    await triggerGenerate();
+    if (!lastGeneratedFile) return;
+  }
+
+  try {
+    const subClean = (metaInfo.subject || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const saveTarget = await window.electronAPI.saveFile({
+      defaultPath: `${subClean}_${metaInfo.exam_label ? metaInfo.exam_label.replace(/[^a-zA-Z0-9_-]/g, '_') : 'Slides'}.pptx`
+    });
+
+    if (saveTarget) {
+      // Re-generate or copy to the chosen target path
+      const payload = {
+        subject: metaInfo.subject,
+        exam_label: metaInfo.exam_label,
+        questions: questions.map(q => ({
+          question: q.question,
+          is_mcq: q.is_mcq,
+          options: q.is_mcq ? q.options : []
+        })),
+        _output: saveTarget
+      };
+      const res = await window.electronAPI.mathPptGenerate(payload);
+      if (res && res.success) {
+        await window.electronAPI.showInFolder(saveTarget);
+      }
+    } else {
+      // Reveal the already generated file
+      await window.electronAPI.showInFolder(lastGeneratedFile);
+    }
+  } catch (err) {
+    alert('Error saving PPT: ' + err.message);
+  }
+}
+
+btnDownloadFinal?.addEventListener('click', handleDownloadPpt);
+btnDownloadPreview?.addEventListener('click', handleDownloadPpt);
+
+// ── Full Preview Mode (Screenshot 4) ────────────────────────────────────────
+function highlightJson(obj) {
+  const jsonStr = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+  const escaped = jsonStr
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  return escaped.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, (match) => {
+    let cls = 'json-number';
+    if (/^"/.test(match)) {
+      if (/:$/.test(match)) {
+        cls = 'json-key';
+      } else {
+        cls = 'json-string';
+      }
+    } else if (/true|false/.test(match)) {
+      cls = 'json-boolean';
+    } else if (/null/.test(match)) {
+      cls = 'json-null';
+    }
+    return `<span class="${cls}">${match}</span>`;
+  });
+}
+
+function openFullPreview() {
+  if (!questions || !questions.length) {
+    alert('Please enter questions JSON first.');
     return;
   }
-  const exportData = {
-    subject: 'Questions',
+
+  // Switch View
+  if (viewWizard) viewWizard.style.display = 'none';
+  if (headerWizardActions) headerWizardActions.style.display = 'none';
+  if (viewFullPreview) viewFullPreview.style.display = 'block';
+  if (headerPreviewActions) headerPreviewActions.style.display = 'flex';
+
+  // Format JSON code and generate line numbers
+  const jsonObj = currentRawParsedObj || {
+    subject: metaInfo.subject,
+    exam_label: metaInfo.exam_label,
     questions: questions.map(q => ({
+      id: q.id,
       question: q.question,
-      is_mcq: q.is_mcq,
-      options: q.is_mcq ? q.options : []
+      options: q.options,
+      answer: q.answer || 'a'
     }))
   };
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `questions.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
+
+  const formattedStr = JSON.stringify(jsonObj, null, 2);
+  const lineCount = formattedStr.split('\n').length;
+  let linesHtml = '';
+  for (let i = 1; i <= lineCount; i++) {
+    linesHtml += `${i}<br>`;
+  }
+
+  if (fullEditorLines) fullEditorLines.innerHTML = linesHtml;
+  if (fullEditorCode) fullEditorCode.innerHTML = highlightJson(jsonObj);
+
+  // Render slide in preview
+  renderSlide(currentSlideIdx);
+}
+
+function closeFullPreview() {
+  if (viewFullPreview) viewFullPreview.style.display = 'none';
+  if (headerPreviewActions) headerPreviewActions.style.display = 'none';
+  if (viewWizard) viewWizard.style.display = 'block';
+  if (headerWizardActions) headerWizardActions.style.display = 'flex';
+  renderSlide(currentSlideIdx);
+}
+
+btnPreviewFull?.addEventListener('click', openFullPreview);
+btnCloseFullPreview?.addEventListener('click', closeFullPreview);
 
 // ── Theme Toggle (Light / Dark) ─────────────────────────────────────────────
 function initTheme() {

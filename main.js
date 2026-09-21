@@ -251,10 +251,29 @@ ipcMain.handle('dialog:selectDirectory', async (event, opts) => {
   return res.filePaths[0];
 });
 
+ipcMain.handle('dialog:saveFile', async (event, opts) => {
+  const res = await dialog.showSaveDialog(mainWindow, {
+    title: opts?.title || 'Save PowerPoint Presentation',
+    defaultPath: opts?.defaultPath || 'Presentation.pptx',
+    filters: [
+      { name: 'PowerPoint Presentation', extensions: ['pptx'] }
+    ]
+  });
+  if (res.canceled || !res.filePath) return null;
+  return res.filePath;
+});
+
 ipcMain.handle('shell:showInFolder', async (event, filePath) => {
   if (filePath && fs.existsSync(filePath)) {
     shell.showItemInFolder(filePath);
     return true;
+  }
+  return false;
+});
+
+ipcMain.handle('shell:openPath', async (event, filePath) => {
+  if (filePath && fs.existsSync(filePath)) {
+    return await shell.openPath(filePath);
   }
   return false;
 });
