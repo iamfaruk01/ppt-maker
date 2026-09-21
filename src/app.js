@@ -30,53 +30,57 @@ CRITICAL RULES:
 
 // ── State ───────────────────────────────────────────────────────────────────
 let questions = [];
+let lastGeneratedFile = null;
 let activeStep = 1;
 
 // ── DOM References ──────────────────────────────────────────────────────────
-const stepCards       = [1, 2, 3].map(i => document.getElementById(`step-card-${i}`));
-const stepHeaders     = [1, 2, 3].map(i => document.getElementById(`step-header-${i}`));
+const stepCards           = [1, 2, 3].map(i => document.getElementById(`step-card-${i}`));
+const stepHeaders         = [1, 2, 3].map(i => document.getElementById(`step-header-${i}`));
+const stepSubtitle1       = document.getElementById('step-subtitle-1');
+const stepSubtitle2       = document.getElementById('step-subtitle-2');
+const stepSubtitle3       = document.getElementById('step-subtitle-3');
 
 // Step 1
-const promptBoxText   = document.getElementById('prompt-box-text');
-const btnCopyPrompt   = document.getElementById('btn-copy-prompt');
+const promptBoxText       = document.getElementById('prompt-box-text');
+const btnCopyPrompt       = document.getElementById('btn-copy-prompt');
 
 // Step 2
-const textareaJson    = document.getElementById('textarea-json-input');
-const selectPreset    = document.getElementById('select-preset');
-const btnLoadPreset   = document.getElementById('btn-load-preset');
-const btnOpenFile     = document.getElementById('btn-open-file');
-const inputFile       = document.getElementById('input-file');
-const btnParseJson    = document.getElementById('btn-parse-json');
+const textareaJson        = document.getElementById('textarea-json-input');
+const btnQuickSample      = document.getElementById('btn-quick-sample');
+const btnGenerateDirect   = document.getElementById('btn-generate-direct');
+const btnGenerateDirectText = document.getElementById('btn-generate-direct-text');
 
 // Step 3
-const statusSummary   = document.getElementById('status-summary-text');
-const inputSubject    = document.getElementById('input-subject');
-const inputExamLabel  = document.getElementById('input-exam-label');
-const btnSaveJson     = document.getElementById('btn-save-json');
-const slideCanvas     = document.getElementById('slide-canvas');
-const slideQContent   = document.getElementById('slide-q-content');
-const slideOptsCont   = document.getElementById('slide-opts-container');
-const slideFooterNum  = document.getElementById('slide-footer-num');
-const btnGeneratePpt  = document.getElementById('btn-generate-ppt');
-const btnGenerateText = document.getElementById('btn-generate-text');
+const statusSummary       = document.getElementById('status-summary-text');
+const step3ReadyBox       = document.getElementById('step-3-ready-box');
+const downloadFileName    = document.getElementById('download-file-name');
+const downloadFileMeta    = document.getElementById('download-file-meta');
+const btnOpenFileExplorer = document.getElementById('btn-open-file-explorer');
+const btnSaveJson         = document.getElementById('btn-save-json');
+const slideCanvas         = document.getElementById('slide-canvas');
+const slideQContent       = document.getElementById('slide-q-content');
+const slideOptsCont       = document.getElementById('slide-opts-container');
+const slideFooterNum      = document.getElementById('slide-footer-num');
+const btnGeneratePpt      = document.getElementById('btn-generate-ppt');
+const btnGenerateText     = document.getElementById('btn-generate-text');
 
 // Header & Settings
-const btnSyncPill     = document.getElementById('btn-sync-pill');
-const syncDot         = document.getElementById('sync-dot');
-const syncText        = document.getElementById('sync-text');
-const btnSettings     = document.getElementById('btn-settings');
-const btnThemeToggle  = document.getElementById('btn-theme-toggle');
-const themeMoonIcon   = document.getElementById('theme-moon-icon');
+const btnSyncPill         = document.getElementById('btn-sync-pill');
+const syncDot             = document.getElementById('sync-dot');
+const syncText            = document.getElementById('sync-text');
+const btnSettings         = document.getElementById('btn-settings');
+const btnThemeToggle      = document.getElementById('btn-theme-toggle');
+const themeMoonIcon       = document.getElementById('theme-moon-icon');
 
 // Modal Settings
-const modalSettings   = document.getElementById('modal-settings');
-const btnCloseSettings= document.getElementById('btn-close-settings');
-const inputGithubRepo = document.getElementById('input-github-repo');
-const inputGithubToken= document.getElementById('input-github-token');
-const checkboxAutoSync= document.getElementById('checkbox-auto-sync');
-const btnCheckSyncNow = document.getElementById('btn-check-sync-now');
-const btnSaveSettings = document.getElementById('btn-save-settings');
-const btnInstallFont  = document.getElementById('btn-install-font');
+const modalSettings       = document.getElementById('modal-settings');
+const btnCloseSettings    = document.getElementById('btn-close-settings');
+const inputGithubRepo     = document.getElementById('input-github-repo');
+const inputGithubToken    = document.getElementById('input-github-token');
+const checkboxAutoSync    = document.getElementById('checkbox-auto-sync');
+const btnCheckSyncNow     = document.getElementById('btn-check-sync-now');
+const btnSaveSettings     = document.getElementById('btn-save-settings');
+const btnInstallFont      = document.getElementById('btn-install-font');
 
 // ── Accordion Controller ────────────────────────────────────────────────────
 function openStep(stepNum) {
@@ -94,7 +98,6 @@ stepHeaders.forEach((header, idx) => {
   header?.addEventListener('click', () => {
     const targetStep = idx + 1;
     if (activeStep === targetStep) {
-      // Toggle collapsed/open
       stepCards[idx].classList.toggle('active');
     } else {
       openStep(targetStep);
@@ -119,107 +122,42 @@ btnCopyPrompt?.addEventListener('click', async () => {
     `;
     setTimeout(() => {
       btnCopyPrompt.innerHTML = origHtml;
-      // Mark step 1 completed and auto-expand step 2
+      // Mark step 1 completed (green badge) and update subtitle (matching screenshot 2!)
       stepCards[0].classList.add('completed');
+      if (stepSubtitle1) {
+        stepSubtitle1.textContent = 'Prompt copied! Now paste it into any AI and get the JSON.';
+      }
       openStep(2);
       if (textareaJson) textareaJson.focus();
-    }, 500);
+    }, 450);
   } catch (err) {
     alert('Clipboard error: ' + err.message);
   }
 });
 
 // ── Step 2: Presets & JSON Parsing ──────────────────────────────────────────
-const EXAMPLE_SETS = {
-  physics: {
-    subject: 'Physics',
-    exam_label: 'Class XII · Mechanics',
-    questions: [
-      {
-        question: `একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$`,
-        is_mcq: true,
-        options: ['100 J', '50 J', '200 J', '25 J']
-      },
-      {
-        question: `এটা $q = 1.6 \\times 10^{-19}$ C আধান $v = 2 \\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\n\nA charge $q = 1.6 \\times 10^{-19}$ C moves with velocity $v = 2 \\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\sin\\theta$`,
-        is_mcq: true,
-        options: ['$1.6 \\times 10^{-13}$ N', '$3.2 \\times 10^{-13}$ N', '$0.8 \\times 10^{-13}$ N', '0 N']
-      }
-    ]
-  },
-  chemistry: {
-    subject: 'Chemistry',
-    exam_label: 'Class XII · Physical Chemistry',
-    questions: [
-      {
-        question: `$T = 300$ K উষ্ণতাত আৰু $V = 10$ L আয়তনত $n = 2$ ম'ল আদৰ্শ গেছৰ চাপ নিৰ্ণয় কৰা। ($R = 0.0821$ L·atm/(mol·K))\n\nFind the pressure of $n = 2$ moles of an ideal gas at temperature $T = 300$ K occupying a volume of $V = 10$ L using:\n\n$$PV = nRT$$`,
-        is_mcq: true,
-        options: ['4.92 atm', '2.46 atm', '9.84 atm', '1.23 atm']
-      }
-    ]
-  },
-  maths: {
-    subject: 'Mathematics',
-    exam_label: 'Class XII · Calculus',
-    questions: [
-      {
-        question: `তলৰ নিৰ্দিষ্ট সমাকলনটোৰ মান নিৰ্ণয় কৰা:\n\nEvaluate the following definite integral:\n\n$$\\int_{0}^{2} (3x^2 + 2x + 1) \\, dx$$`,
-        is_mcq: true,
-        options: ['14', '12', '16', '10']
-      }
-    ]
-  }
+const SAMPLE_PHYSICS = {
+  subject: "Physics",
+  exam_label: "Class XII · Final Exam",
+  questions: [
+    {
+      id: 1,
+      question: "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$",
+      is_mcq: true,
+      options: ["100 J", "50 J", "200 J", "25 J"]
+    },
+    {
+      id: 2,
+      question: "এটা $q = 1.6 \\times 10^{-19}$ C আধান $v = 2 \\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\n\nA charge $q = 1.6 \\times 10^{-19}$ C moves with velocity $v = 2 \\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\sin\\theta$",
+      is_mcq: true,
+      options: ["$1.6 \\times 10^{-13}$ N", "$3.2 \\times 10^{-13}$ N", "$0.8 \\times 10^{-13}$ N", "0 N"]
+    }
+  ]
 };
 
-btnLoadPreset?.addEventListener('click', () => {
-  const presetKey = selectPreset.value;
-  let presetData;
-  if (presetKey === 'all') {
-    presetData = {
-      subject: 'Science & Mathematics',
-      exam_label: 'Model Exam · 2025',
-      questions: [
-        ...EXAMPLE_SETS.physics.questions,
-        ...EXAMPLE_SETS.chemistry.questions,
-        ...EXAMPLE_SETS.maths.questions
-      ]
-    };
-  } else {
-    presetData = EXAMPLE_SETS[presetKey] || EXAMPLE_SETS.physics;
-  }
-  textareaJson.value = JSON.stringify(presetData, null, 2);
-  parseAndLoad(textareaJson.value);
-});
-
-btnOpenFile?.addEventListener('click', () => {
-  if (inputFile) {
-    inputFile.value = '';
-    inputFile.click();
-  }
-});
-
-inputFile?.addEventListener('change', (e) => {
-  const file = e.target?.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    try {
-      textareaJson.value = evt.target.result;
-      parseAndLoad(evt.target.result);
-    } catch (err) {
-      alert('Error reading file: ' + err.message);
-    }
-  };
-  reader.readAsText(file, 'UTF-8');
-});
-
-btnParseJson?.addEventListener('click', () => {
-  const text = textareaJson.value.trim();
-  if (!text) {
-    alert('Please paste JSON text first or click "Load Example".');
-    return;
-  }
-  parseAndLoad(text);
+btnQuickSample?.addEventListener('click', () => {
+  textareaJson.value = JSON.stringify(SAMPLE_PHYSICS, null, 2);
+  textareaJson.focus();
 });
 
 function stripCitations(text) {
@@ -234,7 +172,7 @@ function stripCitations(text) {
 }
 
 function parseAndLoad(rawText) {
-  if (!rawText || !rawText.trim()) return;
+  if (!rawText || !rawText.trim()) return false;
   const clean = rawText.trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '')
@@ -248,8 +186,8 @@ function parseAndLoad(rawText) {
       const repaired = clean.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
       parsed = JSON.parse(repaired);
     } catch (e2) {
-      alert('Invalid JSON format. Please verify JSON syntax.');
-      return;
+      alert('Invalid JSON format. Please verify the JSON syntax.');
+      return false;
     }
   }
 
@@ -266,12 +204,9 @@ function parseAndLoad(rawText) {
   }
 
   if (!rawQuestions || rawQuestions.length === 0) {
-    alert('No questions array found in JSON.');
-    return;
+    alert('No questions array found in JSON. Expected: { "questions": [ ... ] }');
+    return false;
   }
-
-  if (subject && inputSubject) inputSubject.value = subject;
-  if (examLabel && inputExamLabel) inputExamLabel.value = examLabel;
 
   questions = rawQuestions.map((q, idx) => {
     let opts = Array.isArray(q.options) ? q.options.map(o => stripCitations(o)) : [];
@@ -286,19 +221,105 @@ function parseAndLoad(rawText) {
     };
   });
 
-  // Mark step 2 completed
-  stepCards[1].classList.add('completed');
-
-  // Update Step 3 Summary & Preview
-  const mcqCount = questions.filter(q => q.is_mcq).length;
-  statusSummary.textContent = `${questions.length} Questions Ready (${mcqCount} MCQ, ${questions.length - mcqCount} Subjective)`;
-  renderSlidePreview();
-
-  // Advance to Step 3
-  openStep(3);
+  return { subject: subject || 'Physics', exam_label: examLabel || '' };
 }
 
-// ── Step 3: Slide Preview & Generation ──────────────────────────────────────
+// ── Shared Generation Logic ─────────────────────────────────────────────────
+async function triggerGenerate() {
+  const text = textareaJson.value.trim();
+  if (!text) {
+    alert('Please paste your JSON text first.');
+    return;
+  }
+
+  const parseResult = parseAndLoad(text);
+  if (!parseResult) return;
+
+  // Ask for output folder
+  let saveDir;
+  try {
+    saveDir = await window.electronAPI.selectDirectory({ title: 'Select Output Folder for PowerPoint' });
+  } catch (e) {
+    console.error(e);
+  }
+  if (!saveDir) return;
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const subClean = (parseResult.subject || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const fullPath = `${saveDir}\\${subClean}_${timestamp}.pptx`;
+  const fileName = `${subClean}_${timestamp}.pptx`;
+
+  // Update button states to loading
+  if (btnGenerateDirect) btnGenerateDirect.disabled = true;
+  if (btnGenerateDirectText) btnGenerateDirectText.textContent = 'Generating...';
+  if (btnGeneratePpt) btnGeneratePpt.disabled = true;
+  if (btnGenerateText) btnGenerateText.textContent = 'Generating...';
+
+  const payload = {
+    subject: parseResult.subject || 'Physics',
+    exam_label: parseResult.exam_label || '',
+    questions: questions.map(q => ({
+      question: q.question,
+      is_mcq: q.is_mcq,
+      options: q.is_mcq ? q.options : []
+    })),
+    _output: fullPath
+  };
+
+  try {
+    const result = await window.electronAPI.mathPptGenerate(payload);
+    if (result && result.success) {
+      lastGeneratedFile = result.output;
+
+      // Mark Step 1 & 2 completed with green checkmarks
+      stepCards[0].classList.add('completed');
+      stepCards[1].classList.add('completed');
+
+      // Update Step 3
+      if (stepSubtitle3) stepSubtitle3.textContent = 'Your presentation is ready!';
+      if (statusSummary) {
+        statusSummary.textContent = `Generated ${questions.length} slides with authentic Assamese & LaTeX formulas.`;
+      }
+      if (downloadFileName) downloadFileName.textContent = fileName;
+      if (downloadFileMeta) downloadFileMeta.textContent = `${questions.length} Slides · Saved in ${saveDir}`;
+      if (step3ReadyBox) step3ReadyBox.style.display = 'flex';
+
+      // Render slide preview
+      renderSlidePreview();
+
+      // Open Step 3
+      openStep(3);
+
+      // Auto-reveal in Windows Explorer
+      await window.electronAPI.showInFolder(result.output);
+
+    } else {
+      alert('PowerPoint Generation Error:\n' + (result?.error || 'Unknown failure.'));
+    }
+  } catch (err) {
+    alert('Generation error: ' + err.message);
+  } finally {
+    if (btnGenerateDirect) btnGenerateDirect.disabled = false;
+    if (btnGenerateDirectText) btnGenerateDirectText.textContent = 'Generate PPT';
+    if (btnGeneratePpt) btnGeneratePpt.disabled = false;
+    if (btnGenerateText) btnGenerateText.textContent = 'Generate & Download PPT';
+  }
+}
+
+// Button in Step 2: "Generate PPT →"
+btnGenerateDirect?.addEventListener('click', triggerGenerate);
+
+// Button in Step 3: "Generate & Download PPT"
+btnGeneratePpt?.addEventListener('click', triggerGenerate);
+
+// "Show in Folder" button in Step 3
+btnOpenFileExplorer?.addEventListener('click', async () => {
+  if (lastGeneratedFile) {
+    await window.electronAPI.showInFolder(lastGeneratedFile);
+  }
+});
+
+// ── Step 3: Slide Preview & JSON Export ─────────────────────────────────────
 function escHtml(s) {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -392,8 +413,7 @@ btnSaveJson?.addEventListener('click', () => {
     return;
   }
   const exportData = {
-    subject: inputSubject?.value.trim() || 'Physics',
-    exam_label: inputExamLabel?.value.trim() || '',
+    subject: 'Questions',
     questions: questions.map(q => ({
       question: q.question,
       is_mcq: q.is_mcq,
@@ -404,66 +424,11 @@ btnSaveJson?.addEventListener('click', () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  const subClean = (inputSubject?.value.trim() || 'questions').toLowerCase().replace(/[^a-z0-9]+/g, '_');
-  a.download = `${subClean}_questions.json`;
+  a.download = `questions.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-});
-
-btnGeneratePpt?.addEventListener('click', async () => {
-  if (!questions.length) {
-    alert('Please load questions in Step 2 first.');
-    openStep(2);
-    return;
-  }
-
-  let saveDir;
-  try {
-    saveDir = await window.electronAPI.selectDirectory({ title: 'Select Output Folder for PowerPoint' });
-  } catch (e) {
-    console.error(e);
-  }
-  if (!saveDir) return;
-
-  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const subClean = (inputSubject?.value.trim() || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const fullPath = `${saveDir}\\${subClean}_${timestamp}.pptx`;
-
-  btnGeneratePpt.disabled = true;
-  btnGenerateText.textContent = 'Generating Presentation...';
-
-  const payload = {
-    subject: inputSubject?.value.trim() || 'Physics',
-    exam_label: inputExamLabel?.value.trim() || '',
-    questions: questions.map(q => ({
-      question: q.question,
-      is_mcq: q.is_mcq,
-      options: q.is_mcq ? q.options : []
-    })),
-    _output: fullPath
-  };
-
-  try {
-    const result = await window.electronAPI.mathPptGenerate(payload);
-    if (result && result.success) {
-      btnGenerateText.textContent = 'Downloaded & Saved!';
-      await window.electronAPI.showInFolder(result.output);
-      setTimeout(() => {
-        btnGenerateText.textContent = 'Download PPT';
-        btnGeneratePpt.disabled = false;
-      }, 3500);
-    } else {
-      alert('PowerPoint Generation Error:\n' + (result?.error || 'Unknown failure.'));
-      btnGenerateText.textContent = 'Download PPT';
-      btnGeneratePpt.disabled = false;
-    }
-  } catch (err) {
-    alert('Error: ' + err.message);
-    btnGenerateText.textContent = 'Download PPT';
-    btnGeneratePpt.disabled = false;
-  }
 });
 
 // ── Theme Toggle (Light / Dark) ─────────────────────────────────────────────
@@ -614,8 +579,4 @@ btnInstallFont?.addEventListener('click', async () => {
 // ── Startup ──────────────────────────────────────────────────────────────────
 initTheme();
 initConfig();
-// Pre-load default physics sample into textarea so step 2 is ready to try
-textareaJson.value = JSON.stringify(EXAMPLE_SETS.physics, null, 2);
-parseAndLoad(textareaJson.value);
-// But keep Step 1 open on initial page load matching the screenshot!
 openStep(1);

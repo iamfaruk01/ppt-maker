@@ -248,6 +248,13 @@ body {
   flex-shrink: 0;
 }
 
+.step-badge .badge-check {
+  display: none;
+}
+.step-badge .badge-num {
+  display: inline;
+}
+
 .step-card.active .step-badge {
   background: #2563eb;
   color: #ffffff;
@@ -258,11 +265,30 @@ body {
   color: #ffffff;
 }
 
+.step-card.completed .step-badge .badge-check {
+  display: inline-block;
+}
+.step-card.completed .step-badge .badge-num {
+  display: none;
+}
+
+.step-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 .step-title {
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-main);
   letter-spacing: -0.2px;
+}
+
+.step-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 .step-chevron {
@@ -347,22 +373,23 @@ body {
 /* ── Step 2: Paste JSON from AI ──────────────────────────────────────────── */
 .json-textarea {
   width: 100%;
-  min-height: 180px;
-  background: var(--bg-inner);
-  border: 1px solid var(--border-color);
+  min-height: 190px;
+  background: var(--bg-card);
+  border: 1.5px solid #93c5fd;
   border-radius: 10px;
   padding: 14px;
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   line-height: 1.5;
   color: var(--text-main);
   resize: vertical;
   outline: none;
-  transition: border-color 0.15s;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .json-textarea:focus {
-  border-color: var(--primary);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
 .preset-group {
