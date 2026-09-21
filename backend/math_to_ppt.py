@@ -202,12 +202,35 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                 greek_cmd = '\\' + cmd
                 if greek_cmd in GREEK:
                     res.append(make_r(GREEK[greek_cmd]))
-                elif cmd in ['times', 'cdot', 'pm', 'mp', 'leq', 'geq', 'approx', 'neq', 'rightarrow', 'leftarrow', 'infty', 'div', 'partial', 'nabla', 'degree']:
+                elif cmd in ['times', 'cdot', 'pm', 'mp', 'leq', 'geq', 'approx', 'neq',
+                             'rightarrow', 'leftarrow', 'Rightarrow', 'Leftarrow',
+                             'leftrightarrow', 'Leftrightarrow',
+                             'infty', 'div', 'partial', 'nabla', 'degree',
+                             'propto', 'sim', 'simeq', 'equiv', 'cong',
+                             'subset', 'supset', 'subseteq', 'supseteq',
+                             'in', 'notin', 'cup', 'cap', 'emptyset',
+                             'forall', 'exists', 'therefore', 'because',
+                             'perp', 'parallel', 'angle', 'triangle',
+                             'oplus', 'otimes', 'circ', 'bullet',
+                             'll', 'gg', 'lll', 'ggg', 'ne',
+                             'geqq', 'leqq', 'dagger', 'ddagger',
+                             'star', 'ast', 'checkmark']:
                     sym_dict = {
                         'times': '×', 'cdot': '·', 'pm': '±', 'mp': '∓',
-                        'leq': '≤', 'geq': '≥', 'approx': '≈', 'neq': '≠',
+                        'leq': '≤', 'geq': '≥', 'approx': '≈', 'neq': '≠', 'ne': '≠',
                         'rightarrow': '→', 'leftarrow': '←', 'infty': '∞',
-                        'div': '÷', 'partial': '∂', 'nabla': '∇', 'degree': '°'
+                        'Rightarrow': '⇒', 'Leftarrow': '⇐',
+                        'leftrightarrow': '↔', 'Leftrightarrow': '⇔',
+                        'div': '÷', 'partial': '∂', 'nabla': '∇', 'degree': '°',
+                        'propto': '∝', 'sim': '∼', 'simeq': '≃', 'equiv': '≡', 'cong': '≅',
+                        'subset': '⊂', 'supset': '⊃', 'subseteq': '⊆', 'supseteq': '⊇',
+                        'in': '∈', 'notin': '∉', 'cup': '∪', 'cap': '∩', 'emptyset': '∅',
+                        'forall': '∀', 'exists': '∃', 'therefore': '∴', 'because': '∵',
+                        'perp': '⊥', 'parallel': '∥', 'angle': '∠', 'triangle': '△',
+                        'oplus': '⊕', 'otimes': '⊗', 'circ': '∘', 'bullet': '•',
+                        'll': '≪', 'gg': '≫', 'lll': '⋘', 'ggg': '⋙',
+                        'geqq': '≧', 'leqq': '≦', 'dagger': '†', 'ddagger': '‡',
+                        'star': '⋆', 'ast': '∗', 'checkmark': '✓',
                     }
                     res.append(make_r(sym_dict.get(cmd, cmd)))
                 elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'lim', 'exp']:
