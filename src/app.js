@@ -1,33 +1,37 @@
 // ── AI Conversion Prompt ───────────────────────────────────────────────────
-const AI_CONVERSION_PROMPT = `You are an expert question paper extractor.
-Extract all questions from the provided PDF or images and output ONLY a valid JSON in the following format:
+const AI_CONVERSION_PROMPT = `You are an expert question paper extractor and LaTeX mathematician.
+Extract all questions from the provided PDF, image, or text and output ONLY a valid JSON object in the following format:
 
 {
-  "subject": "<Subject Name>",
-  "exam_label": "<Exam / Class / Year>",
+  "subject": "<Subject Name, e.g. Physics / Mathematics / Chemistry>",
+  "exam_label": "<Exam / Class / Year, e.g. Class XII · Final Examination 2026>",
   "questions": [
     {
       "id": 1,
       "question": "<Full question text. If bilingual, write English followed by (Assamese) in a continuous line. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": true,
       "options": [
-        "<Option A text/value without (A) prefix>",
-        "<Option B text/value without (B) prefix>",
-        "<Option C text/value without (C) prefix>",
-        "<Option D text/value without (D) prefix>"
-      ]
+        "<Option A text or math value without (A) prefix>",
+        "<Option B text or math value without (B) prefix>",
+        "<Option C text or math value without (C) prefix>",
+        "<Option D text or math value without (D) prefix>"
+      ],
+      "answer": "a"
     }
   ]
 }
 
 CRITICAL RULES:
 1. Output your ENTIRE response inside a SINGLE markdown code block starting with \`\`\`json and ending with \`\`\`.
-2. Do NOT write any conversational text, notes, or introductions before or after the code block.
-3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{1}{2}, \\\\times, \\\\sin, \\\\int).
+2. Do NOT write any conversational text, explanations, or notes before or after the code block.
+3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\begin{bmatrix}).
 4. If bilingual, write in a continuous line with English first followed by Assamese in parentheses: English text (Assamese text).
-5. For all mathematical formulas, fractions, and divisions, ALWAYS use proper LaTeX format inside $...$ (e.g. $\\frac{m}{a}$, $\\frac{1}{2}$, $F = ma$). NEVER write raw slash divisions like (m/a) or m/a.
-6. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
-7. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+5. For ALL mathematical expressions, formulas, symbols, units, and equations, ALWAYS wrap them in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$).
+6. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)" prefixes). If an option is mathematical, wrap it in $...$ (e.g. "$25$ J", "$\\\\frac{a}{b}$").
+7. Full standard LaTeX is supported: fractions (\\\\frac), roots (\\\\sqrt, \\\\sqrt[n]), vectors (\\\\vec), subscripts/superscripts (x_1^2), matrices (\\\\begin{bmatrix}), cases (\\\\begin{cases}), limits (\\\\lim), summations (\\\\sum), integrals (\\\\int), and Greek letters (\\\\alpha, \\\\theta).
+8. Always include the correct option letter in "answer" ("a", "b", "c", or "d").
+9. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+
 
 // ── Sample Data ─────────────────────────────────────────────────────────────
 const SAMPLE_PHYSICS = {
