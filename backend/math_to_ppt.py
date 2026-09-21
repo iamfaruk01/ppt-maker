@@ -607,12 +607,84 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
 
     return res
 
+_XSLT_TRANSFORM = None
+
+def get_xslt_transform():
+    global _XSLT_TRANSFORM
+    if _XSLT_TRANSFORM is None:
+        try:
+            from lxml import etree
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            xsl_path = os.path.join(script_dir, 'MML2OMML.XSL')
+            if not os.path.exists(xsl_path):
+                office_paths = [
+                    r'C:\Program Files\Microsoft Office\root\Office16\MML2OMML.XSL',
+                    r'C:\Program Files (x86)\Microsoft Office\root\Office16\MML2OMML.XSL',
+                ]
+                for op in office_paths:
+                    if os.path.exists(op):
+                        xsl_path = op
+                        break
+            if os.path.exists(xsl_path):
+                xslt_doc = etree.parse(xsl_path)
+                _XSLT_TRANSFORM = etree.XSLT(xslt_doc)
+        except Exception:
+            _XSLT_TRANSFORM = False
+    return _XSLT_TRANSFORM if _XSLT_TRANSFORM is not False else None
+
+def latex_to_omml_ast(latex_str, color_hex="63CAB7", sz=2000):
+    transform = get_xslt_transform()
+    if not transform:
+        return None
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        if script_dir not in sys.path:
+            sys.path.insert(0, script_dir)
+        import latex2mathml.converter
+        from lxml import etree
+
+        mathml_str = latex2mathml.converter.convert(latex_str)
+        mathml_dom = etree.fromstring(mathml_str.encode('utf-8'))
+        omml_dom = transform(mathml_dom)
+
+        m_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+        a_ns = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+        a14_ns = 'http://schemas.microsoft.com/office/drawing/2010/main'
+        ns_map = {'m': m_ns, 'a': a_ns, 'a14': a14_ns}
+
+        root = omml_dom.getroot()
+        for r in root.xpath('.//m:r', namespaces=ns_map):
+            rPr = etree.Element(f'{{{a_ns}}}rPr', sz=str(sz))
+            solidFill = etree.SubElement(rPr, f'{{{a_ns}}}solidFill')
+            etree.SubElement(solidFill, f'{{{a_ns}}}srgbClr', val=color_hex)
+            r.insert(0, rPr)
+
+        omml_xml = etree.tostring(root, encoding='utf-8').decode('utf-8')
+        if omml_xml.startswith('<?xml'):
+            omml_xml = omml_xml[omml_xml.find('?>')+2:].strip()
+
+        return f'<a14:m xmlns:a14="{a14_ns}" xmlns:m="{m_ns}" xmlns:a="{a_ns}">{omml_xml}</a14:m>'
+    except Exception:
+        return None
+
 def parse_latex_to_omml_xml(latex_str, color_hex="63CAB7", sz=2000):
     """
     Converts LaTeX to PowerPoint native OMML wrapped in DrawingML a14:m element.
+    Uses professional AST pipeline (latex2mathml + Microsoft MML2OMML.XSL)
+    with graceful fallback to direct token parser for malformed inputs.
     """
     s = latex_str.strip().strip('$')
     s = normalize_fractions(s)
+
+    # 1. Try standard AST pipeline (compiler-grade MathML -> OMML)
+    try:
+        xml = latex_to_omml_ast(s, color_hex, sz)
+        if xml:
+            return xml
+    except Exception:
+        pass
+
+    # 2. Fallback to direct token parser for malformed or trick inputs
     nodes = parse_math_tokens(s, color_hex, sz)
     omml_body = "".join(nodes)
     return f'<a14:m xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><m:oMath>{omml_body}</m:oMath></a14:m>'
