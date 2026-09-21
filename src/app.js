@@ -8,7 +8,7 @@ Extract all questions from the provided PDF or images and output ONLY a valid JS
   "questions": [
     {
       "id": 1,
-      "question": "<Full question text in Assamese and/or English. Use $...$ for inline math and $$...$$ for display equations>",
+      "question": "<Full question text. If bilingual, write English followed by (Assamese) in a continuous line. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": true,
       "options": [
         "<Option A text/value without (A) prefix>",
@@ -24,7 +24,7 @@ CRITICAL RULES:
 1. Output your ENTIRE response inside a SINGLE markdown code block starting with \`\`\`json and ending with \`\`\`.
 2. Do NOT write any conversational text, notes, or introductions before or after the code block.
 3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{1}{2}, \\\\times, \\\\sin, \\\\int).
-4. If bilingual, put Assamese first, two newlines (\\n\\n), then English.
+4. If bilingual, write in a continuous line with English first followed by Assamese in parentheses: English text (Assamese text).
 5. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
 6. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
 
@@ -59,7 +59,7 @@ const SAMPLE_PHYSICS = {
     },
     {
       id: 3,
-      question: "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$",
+      question: "A body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy (একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা): $$KE = \\frac{1}{2}mv^2$$",
       is_mcq: true,
       options: [
         "100 J",
