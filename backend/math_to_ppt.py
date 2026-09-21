@@ -99,7 +99,10 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                 if s[j] == '{': depth += 1
                 elif s[j] == '}': depth -= 1
                 j += 1
-            return s[start_idx+1:j-1], j
+            if depth == 0:
+                return s[start_idx+1:j-1], j
+            else:
+                return s[start_idx+1:], n
         else:
             m = re.match(r'^[+\-]?[a-zA-Z0-9]+', s[start_idx:])
             if m:
@@ -172,7 +175,7 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     txt_arg, i = extract_braced_arg(i)
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{txt_arg}</m:t></m:r>')
                 else:
-                    res.append(make_r(cmd))
+                    res.append(make_r('\\' + cmd))
                 continue
             else:
                 i += 1
