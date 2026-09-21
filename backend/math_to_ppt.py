@@ -75,6 +75,38 @@ def normalize_fractions(text):
     t = re.sub(r'^([a-zA-Z0-9_]+)\s*/\s*([a-zA-Z0-9_]+)$', r'\\frac{\1}{\2}', t)
     return t
 
+def wrap_bare_latex(text):
+    """
+    Wraps bare LaTeX commands (\\frac, \\sqrt, \\sum, \\int, etc.) that appear
+    OUTSIDE of $...$ or $$...$$ math delimiters into $...$, so they get
+    rendered as native OMML equations instead of literal strings.
+
+    Example: "v = 5 \\frac{m}{s}" -> "v = 5 $\\frac{m}{s}$"
+    """
+    if not text or ('\\' not in text):
+        return text
+
+    BARE_LATEX_PAT = re.compile(
+        r'(?<!\$)'          # not already preceded by $
+        r'(\\(?:frac\{[^}]+\}\{[^}]+\}'   # \frac{A}{B}
+        r'|sqrt(?:\[[^\]]*\])?\{[^}]+\}'   # \sqrt{x} or \sqrt[n]{x}
+        r'|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \sum or \sum_{a}^{b}
+        r'|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \int or \int_{a}^{b}
+        r'|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \prod
+        r'))'
+        r'(?!\$)'           # not followed by $
+    )
+
+    # Split on existing $ delimiters, only process text outside math mode
+    parts = re.split(r'(\$\$.*?\$\$|\$.*?\$)', text, flags=re.DOTALL)
+    result = []
+    for part in parts:
+        if part.startswith('$'):
+            result.append(part)  # already math, keep as-is
+        else:
+            result.append(BARE_LATEX_PAT.sub(r'$\1$', part))
+    return ''.join(result)
+
 def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
     """
     Converts LaTeX math expression into a list of DrawingML OMML XML elements.
@@ -353,6 +385,8 @@ def set_run_font(r, font_name, size=None, bold=False, italic=False, color=None):
 
 def add_paragraph_runs(p, text, font_size=None):
     """Appends styled runs to paragraph p, handling Assamese, English, and inline $math$ with OMML."""
+    # Wrap bare LaTeX commands (e.g. \frac{m}{s} outside $) into $...$
+    text = wrap_bare_latex(text)
     tokens = re.split(r'(\$[^$]+\$)', text)
     sz_pt = 21
     if font_size is not None:

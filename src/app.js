@@ -268,6 +268,24 @@ function normalizeMathFractions(str) {
   return s;
 }
 
+/**
+ * Wraps bare LaTeX commands (\frac, \sqrt, \sum, \int, etc.) that appear
+ * OUTSIDE of $...$ math delimiters in $...$, so MathJax renders them.
+ *
+ * Example: "v = 5 \frac{m}{s}" -> "v = 5 $\frac{m}{s}$"
+ */
+function wrapBareLatexCommands(str) {
+  if (!str || !str.includes('\\')) return str;
+  // Regex to find bare LaTeX commands with braces outside $
+  const BARE_LATEX = /\\(?:frac\{[^}]+\}\{[^}]+\}|sqrt(?:\[[^\]]*\])?\{[^}]+\}|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?)/g;
+  // Split on existing $...$ segments so we don't double-wrap
+  const parts = str.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('$')) return part; // already math, skip
+    return part.replace(BARE_LATEX, m => `$${m}$`);
+  }).join('');
+}
+
 function isMathExpression(str) {
   if (!str) return false;
   const s = String(str).trim();
@@ -448,7 +466,7 @@ function parseSegments(text) {
 
 function formatQuestionHtml(rawQuestion) {
   if (!rawQuestion) return '';
-  const normalizedQ = normalizeMathFractions(rawQuestion);
+  const normalizedQ = wrapBareLatexCommands(normalizeMathFractions(rawQuestion));
   const paragraphs = normalizedQ.split(/\n\s*\n/);
   let contentHtml = '';
 
