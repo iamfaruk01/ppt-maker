@@ -867,21 +867,71 @@ def generate(data, output_path):
         # Position calculations: Start question right at top-left corner
         content_top = Inches(0.4)
         
-        # Estimate height taken by question text accurately
+        # 1. Total visual character count to determine ideal proportional font size
+        total_chars = sum(len(bcontent) for btype, bcontent in blocks if btype == 'text')
+        has_assamese_q = is_assamese(raw_text)
+
+        if total_chars < 180:
+            q_font_pt = 22 if has_assamese_q else 21
+            cpl = 56
+            line_h = Inches(0.38)
+            tall_h = Inches(0.52)
+        elif total_chars < 320:
+            q_font_pt = 21 if has_assamese_q else 20
+            cpl = 62
+            line_h = Inches(0.35)
+            tall_h = Inches(0.48)
+        else:
+            q_font_pt = 19.5 if has_assamese_q else 19
+            cpl = 68
+            line_h = Inches(0.33)
+            tall_h = Inches(0.45)
+
+        q_font_size = Pt(q_font_pt)
+
+        # 2. Precise word-wrap and line height estimation
         total_text_lines = 0
+        total_tall_lines = 0
         num_non_empty_paras = 0
+
         for btype, bcontent in blocks:
             if btype == 'text':
                 for line in bcontent.split('\n'):
                     line_s = line.strip()
-                    if line_s:
-                        num_non_empty_paras += 1
-                        u_len = len(latex_to_unicode(re.sub(r'\$[^$]+\$', 'MMMM', line_s)))
-                        wrap_lines = max(1, (u_len + 88) // 92)
-                        total_text_lines += wrap_lines
+                    if not line_s:
+                        continue
+                    num_non_empty_paras += 1
+                    is_tall = bool(re.search(r'\\(?:frac|binom|begin\{|sum|prod|int|lim)', line_s))
+                    
+                    # Clean representation of line for realistic wrapping estimation
+                    clean = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', lambda m: ' ' + ('X' * max(len(m.group(1)), len(m.group(2)))) + ' ', line_s)
+                    clean = re.sub(r'\\sqrt(?:\[[^\]]*\])?\{([^}]+)\}', lambda m: ' ' + ('X' * (len(m.group(1)) + 2)) + ' ', clean)
+                    clean = re.sub(r'\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}', ' ' + ('X' * 20) + ' ', clean)
+                    clean = re.sub(r'\\[a-zA-Z]+', 'XX', clean)
+                    clean = clean.replace('$', '')
+                    
+                    words = clean.split()
+                    if not words:
+                        continue
+                    cur_w = 0
+                    l_cnt = 1
+                    for w in words:
+                        wl = len(w)
+                        if cur_w == 0:
+                            cur_w = wl
+                        elif cur_w + 1 + wl <= cpl:
+                            cur_w += 1 + wl
+                        else:
+                            l_cnt += 1
+                            cur_w = wl
+                    total_text_lines += l_cnt
+                    if is_tall:
+                        total_tall_lines += min(l_cnt, 2)
 
+        normal_lines = max(0, total_text_lines - total_tall_lines)
         para_gaps = max(0, num_non_empty_paras - 1)
-        q_text_h = max(Inches(0.4), total_text_lines * Inches(0.36) + para_gaps * Inches(0.11) + Inches(0.04))
+        q_text_h = normal_lines * line_h + total_tall_lines * tall_h + para_gaps * Inches(0.08) + Inches(0.12)
+        q_text_h = max(Inches(0.45), q_text_h)
 
         # Add Native Text Box for the question text
         tb = slide.shapes.add_textbox(ML, content_top, CW, q_text_h)
@@ -901,8 +951,8 @@ def generate(data, output_path):
                         continue
                     p = tf.paragraphs[0] if first_p else tf.add_paragraph()
                     first_p = False
-                    p.space_after = Pt(8)
-                    add_paragraph_runs(p, line_s)
+                    p.space_after = Pt(6)
+                    add_paragraph_runs(p, line_s, font_size=q_font_size)
             elif btype == 'display':
                 display_eqs.append(bcontent)
 
@@ -910,7 +960,7 @@ def generate(data, output_path):
 
         # 4. Render and place any Display Equations directly below question text
         if display_eqs:
-            cur_y += Inches(0.08)
+            cur_y += Inches(0.10)
             for deq in display_eqs:
                 buf, dw, dh = render_display_eq(deq, fontsize=26)
                 if buf:
@@ -918,24 +968,33 @@ def generate(data, output_path):
                     dh_in = Inches(dh)
                     dx = ML + Inches(0.25)
                     slide.shapes.add_picture(buf, dx, cur_y, dw_in, dh_in)
-                    cur_y += dh_in + Inches(0.10)
+                    cur_y += dh_in + Inches(0.12)
 
-        # 5. MCQ Options (Simple Text, Each Option on a New Line, Compact Sized Box)
+        # 5. MCQ Options (Dynamically placed with guaranteed separation gap)
         if is_mcq and options:
-            start_opt_y = cur_y + Inches(0.18)
-            opt_h = Inches(0.40)
-            gap_y = Inches(0.16)
+            start_opt_y = max(Inches(2.2), cur_y + Inches(0.35))
+            cur_opt_y = start_opt_y
+            gap_y = Inches(0.14)
 
             for i in range(min(4, len(options))):
                 opt_str = str(options[i]).strip()
                 if not opt_str:
                     continue
-                oy = start_opt_y + i * (opt_h + gap_y)
+
+                norm_opt = normalize_fractions(opt_str)
+                opt_has_tall = bool(re.search(r'\\(?:frac|binom|begin\{|sum|int)', norm_opt))
+                clean_opt = latex_to_unicode(norm_opt.replace('$', ''))
 
                 # Calculate compact width so textbox does NOT stretch across the slide
                 opt_w = calc_option_width(LABELS[i], opt_str)
+                opt_chars = len(f"({LABELS[i]}) {clean_opt}")
+                opt_lines = 1
+                if opt_w >= CW and opt_chars > 65:
+                    opt_lines = max(1, (opt_chars + 50) // 55)
 
-                tb_opt = slide.shapes.add_textbox(ML, oy, opt_w, opt_h)
+                this_opt_h = Inches(0.40 * opt_lines + (0.14 if opt_has_tall else 0))
+
+                tb_opt = slide.shapes.add_textbox(ML, cur_opt_y, opt_w, this_opt_h)
                 tf_o = tb_opt.text_frame
                 tf_o.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
                 tf_o.word_wrap = True if opt_w >= CW else False
@@ -956,7 +1015,6 @@ def generate(data, output_path):
                     pPr = parse_xml('<a:pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:defRPr sz="2000"><a:solidFill><a:srgbClr val="63CAB7"/></a:solidFill></a:defRPr></a:pPr>')
                     p_o._p.insert(0, pPr)
 
-                norm_opt = normalize_fractions(opt_str)
                 is_math = ('$' in norm_opt) or ('\\frac' in norm_opt) or ('\\sqrt' in norm_opt) or ('/' in norm_opt and re.search(r'[a-zA-Z0-9]/[a-zA-Z0-9]', norm_opt)) or re.search(r'^[a-zA-Z]\s*=\s*', norm_opt)
 
                 if '$' in norm_opt:
@@ -968,6 +1026,8 @@ def generate(data, output_path):
                     c_r = p_o.add_run()
                     c_r.text = norm_opt
                     set_run_font(c_r, 'Banikanta', size=Pt(20), color=WHITE)
+
+                cur_opt_y += this_opt_h + gap_y
 
         # 6. Slide number footer
         tb_f = slide.shapes.add_textbox(0, SH - Inches(0.4), SW, Inches(0.35))
