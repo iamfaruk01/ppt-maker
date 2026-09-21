@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PPT Maker</title>
+  <title>JSON to PPT</title>
   <link rel="stylesheet" href="src/styles.css">
   <!-- MathJax Configuration -->
   <script>
@@ -26,132 +26,189 @@
   <!-- Header -->
   <header class="app-header">
     <div class="header-brand">
-      <div class="brand-icon" title="PPT Maker">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0c0c10" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="18" height="14" x="3" y="3" rx="2"/>
-          <path d="M7 21h10"/>
-          <path d="M12 17v4"/>
-        </svg>
-      </div>
-      <div class="brand-title">PPT Maker</div>
+      <div class="brand-icon">P</div>
+      <div class="brand-title">JSON to PPT</div>
     </div>
     <div class="header-actions">
       <div class="sync-pill" id="btn-sync-pill" title="GitHub Auto-Sync status. Click to configure repo.">
         <span class="sync-dot offline" id="sync-dot"></span>
         <span id="sync-text">Checking sync...</span>
       </div>
-      <button class="btn-icon" id="btn-settings" title="Settings &amp; GitHub Sync">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <button class="btn-icon" id="btn-settings" title="Settings &amp; Live Sync">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"/>
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="btn-icon" id="btn-theme-toggle" title="Toggle Light/Dark Theme">
+        <svg id="theme-moon-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
         </svg>
       </button>
     </div>
   </header>
 
-  <!-- Body -->
-  <main class="app-body">
-    <!-- Left: Editor Pane -->
-    <section class="editor-pane">
-      <!-- Toolbar -->
-      <div class="toolbar">
-        <input type="file" id="input-file" accept=".json" style="display: none;">
-        <button id="btn-copy-prompt" type="button" class="tool-btn tool-btn-purple" title="Copy AI prompt to extract questions from PDFs/Images">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-          <span>Copy AI Prompt</span>
-        </button>
-        <button id="btn-open-file" type="button" class="tool-btn tool-btn-teal" title="Open a saved JSON question file">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
-          <span>Open JSON</span>
-        </button>
-        <button id="btn-paste-json" type="button" class="tool-btn tool-btn-gray" title="Paste JSON text generated from AI">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M12 11v6"/><path d="m9 14 3 3 3-3"/></svg>
-          <span>Paste JSON</span>
-        </button>
-        <button id="btn-save-file" type="button" class="tool-btn tool-btn-gray" title="Save current questions to JSON">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          <span>Save JSON</span>
-        </button>
-        <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
-          <select id="select-example" class="select-example">
-            <option value="all">All Variations (Phy, Chem, Math)</option>
-            <option value="physics">Physics (Mechanics & Magnetism)</option>
-            <option value="chemistry">Chemistry (Gas Law & pH)</option>
-            <option value="maths">Mathematics (Calculus & Algebra)</option>
-          </select>
-          <button id="btn-load-example" type="button" class="tool-btn tool-btn-teal">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24"/><path d="M21 3v6h-6"/></svg>
-            <span>Load</span>
+  <!-- Main Container -->
+  <main class="main-container">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <h1 class="hero-title">Convert Questions to Beautiful PPT</h1>
+      <p class="hero-subtitle">Just 3 simple steps. No extra settings.</p>
+    </section>
+
+    <!-- 3 Step Accordion -->
+    <div class="steps-wrapper">
+      <!-- Step 1: Copy AI Prompt -->
+      <div class="step-card active" id="step-card-1">
+        <div class="step-header" id="step-header-1">
+          <div class="step-header-left">
+            <div class="step-badge">1</div>
+            <div class="step-title">Copy AI Prompt</div>
+          </div>
+          <div class="step-chevron">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="prompt-box" id="prompt-box-text">Loading prompt...</div>
+          <div class="step-action-row">
+            <div class="prompt-hint">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <span>This prompt works with ChatGPT, Claude, Gemini, etc.</span>
+            </div>
+            <button class="btn-primary-action" id="btn-copy-prompt">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+              </svg>
+              <span>Copy Prompt</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Paste JSON from AI -->
+      <div class="step-card" id="step-card-2">
+        <div class="step-header" id="step-header-2">
+          <div class="step-header-left">
+            <div class="step-badge">2</div>
+            <div class="step-title">Paste JSON from AI</div>
+          </div>
+          <div class="step-chevron">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+        <div class="step-body">
+          <textarea class="json-textarea" id="textarea-json-input" rows="8" placeholder='{\n  "subject": "Physics",\n  "exam_label": "Class XII · 2025",\n  "questions": [\n    {\n      "question": "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। গতিশক্তি নির্ণয় কৰা।",\n      "is_mcq": true,\n      "options": ["100 J", "50 J", "200 J", "25 J"]\n    }\n  ]\n}'></textarea>
+          
+          <div class="step-action-row">
+            <div class="preset-group">
+              <select id="select-preset" class="select-preset">
+                <option value="physics">Physics (Mechanics)</option>
+                <option value="chemistry">Chemistry (Gas Law &amp; pH)</option>
+                <option value="maths">Mathematics (Calculus &amp; Algebra)</option>
+                <option value="all">All Variations Combined</option>
+              </select>
+              <button class="btn-secondary-action" id="btn-load-preset">Load Example</button>
+              <input type="file" id="input-file" accept=".json" style="display: none;">
+              <button class="btn-secondary-action" id="btn-open-file">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>
+                </svg>
+                <span>Open .json file</span>
+              </button>
+            </div>
+
+            <button class="btn-primary-action" id="btn-parse-json">
+              <span>Parse &amp; Continue</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3: Download PPT -->
+      <div class="step-card" id="step-card-3">
+        <div class="step-header" id="step-header-3">
+          <div class="step-header-left">
+            <div class="step-badge">3</div>
+            <div class="step-title">Download PPT</div>
+          </div>
+          <div class="step-chevron">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+        <div class="step-body">
+          <div class="status-callout" id="status-callout">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span id="status-summary-text">Ready to generate PowerPoint</span>
+          </div>
+
+          <div class="meta-grid">
+            <div class="meta-field">
+              <label for="input-subject">Subject</label>
+              <input type="text" id="input-subject" placeholder="e.g. Physics" value="Physics">
+            </div>
+            <div class="meta-field">
+              <label for="input-exam-label">Exam / Class</label>
+              <input type="text" id="input-exam-label" placeholder="e.g. Class XII · 2025" value="Class XII · 2025">
+            </div>
+          </div>
+
+          <!-- Slide Live Preview -->
+          <div class="preview-toggle-bar">
+            <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;">Slide Preview (Q1)</span>
+            <button class="btn-secondary-action" id="btn-save-json" style="padding: 4px 10px; font-size: 0.76rem;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Save as .json</span>
+            </button>
+          </div>
+
+          <div class="slide-canvas" id="slide-canvas">
+            <div class="slide-question-content" id="slide-q-content">
+              Loading slide preview...
+            </div>
+            <div class="slide-options-container" id="slide-opts-container"></div>
+            <div class="slide-footer-num" id="slide-footer-num">1</div>
+          </div>
+
+          <button class="btn-download-ppt" id="btn-generate-ppt">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span id="btn-generate-text">Download PPT</span>
           </button>
         </div>
       </div>
-
-      <!-- Metadata: Subject & Exam -->
-      <div class="meta-row">
-        <div class="meta-input-group">
-          <label for="input-subject">Subject</label>
-          <input type="text" id="input-subject" placeholder="e.g. Physics" value="Physics">
-        </div>
-        <div class="meta-input-group">
-          <label for="input-exam-label">Exam / Class</label>
-          <input type="text" id="input-exam-label" placeholder="e.g. Class XII · 2025" value="Class XII · 2025">
-        </div>
-      </div>
-
-      <!-- Question List -->
-      <div class="question-scroll-list" id="question-list">
-        <!-- Rendered dynamically -->
-      </div>
-
-      <!-- Bottom Action Bar -->
-      <div class="bottom-action-bar">
-        <button id="btn-add-q" class="btn-add-q">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-          <span>Add Question</span>
-        </button>
-        <button id="btn-generate" class="btn-generate">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="3" rx="2"/><path d="M7 21h10"/><path d="M12 17v4"/><polygon points="10 8 10 12 14 10" fill="currentColor"/></svg>
-          <span>Generate PPT</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- Right: Preview Pane -->
-    <section class="preview-pane">
-      <div class="preview-header">
-        <span class="preview-title" id="preview-title">SLIDE PREVIEW (Q1)</span>
-        <span style="font-size: 0.75rem; color: #778;">16:9 HD Canvas</span>
-      </div>
-      <div class="slide-canvas" id="slide-canvas">
-        <div class="slide-question-content" id="slide-q-content">
-          Loading question preview...
-        </div>
-        <div class="slide-options-container" id="slide-opts-container"></div>
-        <div class="slide-footer-num" id="slide-footer-num">1</div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Modal: Paste JSON -->
-  <div class="modal-backdrop" id="modal-paste" style="display: none;">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3>Paste JSON from AI</h3>
-        <button class="modal-close" id="btn-close-paste" title="Close">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <textarea id="textarea-paste" class="modal-textarea" rows="14" placeholder='{\n  "subject": "Physics",\n  "exam_label": "Class XII · 2025",\n  "questions": [\n    {\n      "question": "...",\n      "is_mcq": true,\n      "options": ["...", "...", "...", "..."]\n    }\n  ]\n}'></textarea>
-      <div class="modal-footer">
-        <button class="btn-secondary" id="btn-cancel-paste">Cancel</button>
-        <button class="btn-primary" id="btn-apply-paste">Load Questions</button>
-      </div>
     </div>
-  </div>
+
+    <!-- App Footer -->
+    <footer class="app-footer">
+      From Question Papers to Presentations. In Minutes.
+    </footer>
+  </main>
 
   <!-- Modal: Settings & GitHub Sync -->
   <div class="modal-backdrop" id="modal-settings" style="display: none;">
-    <div class="modal-card" style="max-width: 520px;">
+    <div class="modal-card">
       <div class="modal-header">
         <h3>Settings &amp; Live Sync</h3>
         <button class="modal-close" id="btn-close-settings" title="Close">
@@ -160,33 +217,33 @@
       </div>
       <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 6px;">
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.8rem; color: #aab;">GitHub Repository (Username/Repo or URL)</label>
-          <input type="text" id="input-github-repo" class="opt-input" placeholder="e.g. iamfaruk01/ppt-maker" style="padding: 8px 10px;">
-          <p style="font-size: 0.74rem; color: #778;">When configured, any fixes pushed to GitHub will instantly update the PowerPoint generator in ~0.5s without reinstalling.</p>
+          <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">GitHub Repository</label>
+          <input type="text" id="input-github-repo" class="json-textarea" style="min-height: auto; padding: 9px 12px; font-family: inherit;" placeholder="e.g. iamfaruk01/ppt-maker">
+          <p style="font-size: 0.74rem; color: var(--text-subtle);">Fixes pushed to GitHub update the generator in ~0.5s without reinstalling.</p>
         </div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <label style="font-size: 0.8rem; color: #aab;">GitHub Personal Access Token (Only if repo is Private)</label>
-          <input type="password" id="input-github-token" class="opt-input" placeholder="ghp_... (leave empty if repository is public)" style="padding: 8px 10px;">
-          <p style="font-size: 0.74rem; color: #778;">If the repository is public, no token is needed. If private, a fine-grained or classic read-only token allows script downloading.</p>
+          <label style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;">GitHub Token (Only if repo is Private)</label>
+          <input type="password" id="input-github-token" class="json-textarea" style="min-height: auto; padding: 9px 12px; font-family: inherit;" placeholder="ghp_... (leave empty if repository is public)">
+          <p style="font-size: 0.74rem; color: var(--text-subtle);">If public, no token is needed. If private, a personal access token is required.</p>
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg-inner); border-radius: 8px; border: 1px solid var(--border-color);">
           <div>
-            <div style="font-size: 0.82rem; color: #fff; font-weight: 500;">Auto-sync on Launch</div>
-            <div style="font-size: 0.74rem; color: #889;">Silently fetches the newest generator script</div>
+            <div style="font-size: 0.84rem; color: var(--text-main); font-weight: 600;">Auto-sync on Launch</div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);">Silently fetches the newest generator script</div>
           </div>
-          <input type="checkbox" id="checkbox-auto-sync" checked style="width: 16px; height: 16px; accent-color: #63cab7; cursor: pointer;">
+          <input type="checkbox" id="checkbox-auto-sync" checked style="width: 16px; height: 16px; accent-color: #2563eb; cursor: pointer;">
         </div>
-        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg-inner); border-radius: 8px; border: 1px solid var(--border-color);">
           <div>
-            <div style="font-size: 0.82rem; color: #fff; font-weight: 500;">Banikanta Assamese Font</div>
-            <div style="font-size: 0.74rem; color: #889;">Ensure font is registered in Windows</div>
+            <div style="font-size: 0.84rem; color: var(--text-main); font-weight: 600;">Banikanta Assamese Font</div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);">Ensures font is registered in Windows</div>
           </div>
-          <button id="btn-install-font" type="button" class="btn-secondary" style="font-size: 0.76rem; padding: 4px 10px;">Re-install Font</button>
+          <button id="btn-install-font" type="button" class="btn-secondary-action" style="font-size: 0.76rem; padding: 5px 10px;">Re-install Font</button>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn-secondary" id="btn-check-sync-now">Check Sync Now</button>
-        <button class="btn-primary" id="btn-save-settings">Save Settings</button>
+        <button class="btn-secondary-action" id="btn-check-sync-now">Check Sync Now</button>
+        <button class="btn-primary-action" id="btn-save-settings">Save Settings</button>
       </div>
     </div>
   </div>

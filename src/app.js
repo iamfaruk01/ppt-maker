@@ -1,49 +1,74 @@
-// ── State ───────────────────────────────────────────────────────────────────
-let questions = [createEmptyQuestion()];
-let activePreviewIdx = 0;
+// ── AI Conversion Prompt ───────────────────────────────────────────────────
+const AI_CONVERSION_PROMPT = `You are an expert question paper extractor.
+Extract all questions from the provided PDF or images and output ONLY a valid JSON in the following format:
 
-function createEmptyQuestion() {
-  return {
-    id: Date.now() + Math.random(),
-    question: '',
-    is_mcq: false,
-    options: ['', '', '', '']
-  };
+{
+  "subject": "<Subject Name>",
+  "exam_label": "<Exam / Class / Year>",
+  "questions": [
+    {
+      "id": 1,
+      "question": "<Full question text in Assamese and/or English. Use $...$ for inline math and $$...$$ for display equations>",
+      "is_mcq": true,
+      "options": [
+        "<Option A text/value without (A) prefix>",
+        "<Option B text/value without (B) prefix>",
+        "<Option C text/value without (C) prefix>",
+        "<Option D text/value without (D) prefix>"
+      ]
+    }
+  ]
 }
 
+CRITICAL RULES:
+1. Output your ENTIRE response inside a SINGLE markdown code block starting with \`\`\`json and ending with \`\`\`.
+2. Do NOT write any conversational text, notes, or introductions before or after the code block.
+3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{1}{2}, \\\\times, \\\\sin, \\\\int).
+4. If bilingual, put Assamese first, two newlines (\\n\\n), then English.
+5. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
+6. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+
+// ── State ───────────────────────────────────────────────────────────────────
+let questions = [];
+let activeStep = 1;
+
 // ── DOM References ──────────────────────────────────────────────────────────
-const qListEl         = document.getElementById('question-list');
-const btnAdd          = document.getElementById('btn-add-q');
-const btnGenerate     = document.getElementById('btn-generate');
+const stepCards       = [1, 2, 3].map(i => document.getElementById(`step-card-${i}`));
+const stepHeaders     = [1, 2, 3].map(i => document.getElementById(`step-header-${i}`));
+
+// Step 1
+const promptBoxText   = document.getElementById('prompt-box-text');
 const btnCopyPrompt   = document.getElementById('btn-copy-prompt');
+
+// Step 2
+const textareaJson    = document.getElementById('textarea-json-input');
+const selectPreset    = document.getElementById('select-preset');
+const btnLoadPreset   = document.getElementById('btn-load-preset');
 const btnOpenFile     = document.getElementById('btn-open-file');
 const inputFile       = document.getElementById('input-file');
-const btnPasteJson    = document.getElementById('btn-paste-json');
-const btnSaveFile     = document.getElementById('btn-save-file');
-const selectExample   = document.getElementById('select-example');
-const btnLoadExample  = document.getElementById('btn-load-example');
+const btnParseJson    = document.getElementById('btn-parse-json');
+
+// Step 3
+const statusSummary   = document.getElementById('status-summary-text');
 const inputSubject    = document.getElementById('input-subject');
 const inputExamLabel  = document.getElementById('input-exam-label');
-
-// Preview Elements
-const previewTitle    = document.getElementById('preview-title');
+const btnSaveJson     = document.getElementById('btn-save-json');
 const slideCanvas     = document.getElementById('slide-canvas');
 const slideQContent   = document.getElementById('slide-q-content');
 const slideOptsCont   = document.getElementById('slide-opts-container');
 const slideFooterNum  = document.getElementById('slide-footer-num');
+const btnGeneratePpt  = document.getElementById('btn-generate-ppt');
+const btnGenerateText = document.getElementById('btn-generate-text');
 
-// Modal Elements: Paste JSON
-const modalPaste      = document.getElementById('modal-paste');
-const btnClosePaste   = document.getElementById('btn-close-paste');
-const btnCancelPaste  = document.getElementById('btn-cancel-paste');
-const btnApplyPaste   = document.getElementById('btn-apply-paste');
-const textareaPaste   = document.getElementById('textarea-paste');
-
-// Modal Elements: Settings & Sync
-const btnSettings     = document.getElementById('btn-settings');
+// Header & Settings
 const btnSyncPill     = document.getElementById('btn-sync-pill');
 const syncDot         = document.getElementById('sync-dot');
 const syncText        = document.getElementById('sync-text');
+const btnSettings     = document.getElementById('btn-settings');
+const btnThemeToggle  = document.getElementById('btn-theme-toggle');
+const themeMoonIcon   = document.getElementById('theme-moon-icon');
+
+// Modal Settings
 const modalSettings   = document.getElementById('modal-settings');
 const btnCloseSettings= document.getElementById('btn-close-settings');
 const inputGithubRepo = document.getElementById('input-github-repo');
@@ -53,14 +78,149 @@ const btnCheckSyncNow = document.getElementById('btn-check-sync-now');
 const btnSaveSettings = document.getElementById('btn-save-settings');
 const btnInstallFont  = document.getElementById('btn-install-font');
 
-// ── Helper Utilities ────────────────────────────────────────────────────────
-function escHtml(s) {
-  return String(s || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+// ── Accordion Controller ────────────────────────────────────────────────────
+function openStep(stepNum) {
+  activeStep = stepNum;
+  stepCards.forEach((card, idx) => {
+    if (idx + 1 === stepNum) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  });
 }
+
+stepHeaders.forEach((header, idx) => {
+  header?.addEventListener('click', () => {
+    const targetStep = idx + 1;
+    if (activeStep === targetStep) {
+      // Toggle collapsed/open
+      stepCards[idx].classList.toggle('active');
+    } else {
+      openStep(targetStep);
+    }
+  });
+});
+
+// ── Step 1: Initialize Prompt & Copy ────────────────────────────────────────
+if (promptBoxText) {
+  promptBoxText.textContent = AI_CONVERSION_PROMPT;
+}
+
+btnCopyPrompt?.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(AI_CONVERSION_PROMPT);
+    const origHtml = btnCopyPrompt.innerHTML;
+    btnCopyPrompt.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+      <span>Copied!</span>
+    `;
+    setTimeout(() => {
+      btnCopyPrompt.innerHTML = origHtml;
+      // Mark step 1 completed and auto-expand step 2
+      stepCards[0].classList.add('completed');
+      openStep(2);
+      if (textareaJson) textareaJson.focus();
+    }, 500);
+  } catch (err) {
+    alert('Clipboard error: ' + err.message);
+  }
+});
+
+// ── Step 2: Presets & JSON Parsing ──────────────────────────────────────────
+const EXAMPLE_SETS = {
+  physics: {
+    subject: 'Physics',
+    exam_label: 'Class XII · Mechanics',
+    questions: [
+      {
+        question: `একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$`,
+        is_mcq: true,
+        options: ['100 J', '50 J', '200 J', '25 J']
+      },
+      {
+        question: `এটা $q = 1.6 \\times 10^{-19}$ C আধান $v = 2 \\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\n\nA charge $q = 1.6 \\times 10^{-19}$ C moves with velocity $v = 2 \\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\sin\\theta$`,
+        is_mcq: true,
+        options: ['$1.6 \\times 10^{-13}$ N', '$3.2 \\times 10^{-13}$ N', '$0.8 \\times 10^{-13}$ N', '0 N']
+      }
+    ]
+  },
+  chemistry: {
+    subject: 'Chemistry',
+    exam_label: 'Class XII · Physical Chemistry',
+    questions: [
+      {
+        question: `$T = 300$ K উষ্ণতাত আৰু $V = 10$ L আয়তনত $n = 2$ ম'ল আদৰ্শ গেছৰ চাপ নিৰ্ণয় কৰা। ($R = 0.0821$ L·atm/(mol·K))\n\nFind the pressure of $n = 2$ moles of an ideal gas at temperature $T = 300$ K occupying a volume of $V = 10$ L using:\n\n$$PV = nRT$$`,
+        is_mcq: true,
+        options: ['4.92 atm', '2.46 atm', '9.84 atm', '1.23 atm']
+      }
+    ]
+  },
+  maths: {
+    subject: 'Mathematics',
+    exam_label: 'Class XII · Calculus',
+    questions: [
+      {
+        question: `তলৰ নিৰ্দিষ্ট সমাকলনটোৰ মান নিৰ্ণয় কৰা:\n\nEvaluate the following definite integral:\n\n$$\\int_{0}^{2} (3x^2 + 2x + 1) \\, dx$$`,
+        is_mcq: true,
+        options: ['14', '12', '16', '10']
+      }
+    ]
+  }
+};
+
+btnLoadPreset?.addEventListener('click', () => {
+  const presetKey = selectPreset.value;
+  let presetData;
+  if (presetKey === 'all') {
+    presetData = {
+      subject: 'Science & Mathematics',
+      exam_label: 'Model Exam · 2025',
+      questions: [
+        ...EXAMPLE_SETS.physics.questions,
+        ...EXAMPLE_SETS.chemistry.questions,
+        ...EXAMPLE_SETS.maths.questions
+      ]
+    };
+  } else {
+    presetData = EXAMPLE_SETS[presetKey] || EXAMPLE_SETS.physics;
+  }
+  textareaJson.value = JSON.stringify(presetData, null, 2);
+  parseAndLoad(textareaJson.value);
+});
+
+btnOpenFile?.addEventListener('click', () => {
+  if (inputFile) {
+    inputFile.value = '';
+    inputFile.click();
+  }
+});
+
+inputFile?.addEventListener('change', (e) => {
+  const file = e.target?.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try {
+      textareaJson.value = evt.target.result;
+      parseAndLoad(evt.target.result);
+    } catch (err) {
+      alert('Error reading file: ' + err.message);
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+});
+
+btnParseJson?.addEventListener('click', () => {
+  const text = textareaJson.value.trim();
+  if (!text) {
+    alert('Please paste JSON text first or click "Load Example".');
+    return;
+  }
+  parseAndLoad(text);
+});
 
 function stripCitations(text) {
   if (!text) return '';
@@ -71,6 +231,80 @@ function stripCitations(text) {
     .replace(/ \n/g, '\n')
     .replace(/\n /g, '\n')
     .trim();
+}
+
+function parseAndLoad(rawText) {
+  if (!rawText || !rawText.trim()) return;
+  const clean = rawText.trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .trim();
+
+  let parsed;
+  try {
+    parsed = JSON.parse(clean);
+  } catch (e1) {
+    try {
+      const repaired = clean.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
+      parsed = JSON.parse(repaired);
+    } catch (e2) {
+      alert('Invalid JSON format. Please verify JSON syntax.');
+      return;
+    }
+  }
+
+  let rawQuestions = [];
+  let subject = '';
+  let examLabel = '';
+
+  if (Array.isArray(parsed)) {
+    rawQuestions = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.questions)) rawQuestions = parsed.questions;
+    if (parsed.subject) subject = String(parsed.subject);
+    if (parsed.exam_label) examLabel = String(parsed.exam_label);
+  }
+
+  if (!rawQuestions || rawQuestions.length === 0) {
+    alert('No questions array found in JSON.');
+    return;
+  }
+
+  if (subject && inputSubject) inputSubject.value = subject;
+  if (examLabel && inputExamLabel) inputExamLabel.value = examLabel;
+
+  questions = rawQuestions.map((q, idx) => {
+    let opts = Array.isArray(q.options) ? q.options.map(o => stripCitations(o)) : [];
+    opts = opts.map(o => o.replace(/^\(?[A-Da-d]\)?[\.\:\)]\s*/, ''));
+    const isMcq = Boolean(q.is_mcq || opts.some(o => o.trim()));
+    while (opts.length < 4) opts.push('');
+    return {
+      id: idx + 1,
+      question: stripCitations(q.question || ''),
+      is_mcq: isMcq,
+      options: opts.slice(0, 4)
+    };
+  });
+
+  // Mark step 2 completed
+  stepCards[1].classList.add('completed');
+
+  // Update Step 3 Summary & Preview
+  const mcqCount = questions.filter(q => q.is_mcq).length;
+  statusSummary.textContent = `${questions.length} Questions Ready (${mcqCount} MCQ, ${questions.length - mcqCount} Subjective)`;
+  renderSlidePreview();
+
+  // Advance to Step 3
+  openStep(3);
+}
+
+// ── Step 3: Slide Preview & Generation ──────────────────────────────────────
+function escHtml(s) {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function parseSegments(text) {
@@ -88,124 +322,15 @@ function parseSegments(text) {
   return segs;
 }
 
-// ── Render Question List ─────────────────────────────────────────────────────
-function renderList() {
-  qListEl.innerHTML = '';
-  questions.forEach((q, idx) => {
-    const card = document.createElement('div');
-    card.className = `q-card ${idx === activePreviewIdx ? 'q-card-active' : ''}`;
-    card.innerHTML = `
-      <div class="q-card-header">
-        <span class="q-badge">Question ${idx + 1}</span>
-        ${questions.length > 1 ? `<button class="btn-remove-q" data-idx="${idx}" title="Remove question"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>` : ''}
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 6px;">
-        <div class="q-field-label">
-          <span>Question Statement</span>
-          <span class="q-field-hint">LaTeX: $...$ inline, $$...$$ block</span>
-        </div>
-        <textarea class="q-textarea" data-idx="${idx}" rows="4"
-          placeholder="Enter Assamese and/or English question statement with LaTeX math...">${escHtml(q.question)}</textarea>
-      </div>
-
-      <label class="mcq-toggle-row">
-        <input type="checkbox" class="mcq-toggle" data-idx="${idx}" ${q.is_mcq ? 'checked' : ''}>
-        <span>Multiple Choice Question (MCQ)</span>
-      </label>
-
-      ${q.is_mcq ? `
-        <div class="options-grid">
-          ${['A', 'B', 'C', 'D'].map((lbl, oi) => `
-            <div class="option-row">
-              <span class="opt-letter">${lbl}</span>
-              <input type="text" class="opt-input" data-idx="${idx}" data-opt="${oi}"
-                placeholder="Option ${lbl} (LaTeX supported)" value="${escHtml(q.options[oi] || '')}">
-            </div>
-          `).join('')}
-        </div>
-      ` : ''}
-    `;
-
-    card.addEventListener('focusin', () => {
-      if (activePreviewIdx !== idx) {
-        activePreviewIdx = idx;
-        highlightActiveCard();
-        updatePreview();
-      }
-    });
-
-    qListEl.appendChild(card);
-  });
-
-  // Bind Listeners
-  qListEl.querySelectorAll('.btn-remove-q').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const i = parseInt(btn.dataset.idx, 10);
-      if (questions.length > 1) {
-        questions.splice(i, 1);
-        if (activePreviewIdx >= questions.length) {
-          activePreviewIdx = Math.max(0, questions.length - 1);
-        }
-        renderList();
-      }
-    });
-  });
-
-  qListEl.querySelectorAll('.q-textarea').forEach(ta => {
-    ta.addEventListener('input', () => {
-      questions[+ta.dataset.idx].question = ta.value;
-      activePreviewIdx = +ta.dataset.idx;
-      highlightActiveCard();
-      updatePreview();
-    });
-  });
-
-  qListEl.querySelectorAll('.mcq-toggle').forEach(cb => {
-    cb.addEventListener('change', () => {
-      questions[+cb.dataset.idx].is_mcq = cb.checked;
-      activePreviewIdx = +cb.dataset.idx;
-      renderList();
-    });
-  });
-
-  qListEl.querySelectorAll('.opt-input').forEach(inp => {
-    inp.addEventListener('input', () => {
-      questions[+inp.dataset.idx].options[+inp.dataset.opt] = inp.value;
-      activePreviewIdx = +inp.dataset.idx;
-      updatePreview();
-    });
-  });
-
-  updatePreview();
-}
-
-function highlightActiveCard() {
-  const cards = qListEl.querySelectorAll('.q-card');
-  cards.forEach((c, idx) => {
-    if (idx === activePreviewIdx) {
-      c.classList.add('q-card-active');
-    } else {
-      c.classList.remove('q-card-active');
-    }
-  });
-}
-
-// ── Preview Renderer ─────────────────────────────────────────────────────────
-function updatePreview() {
+function renderSlidePreview() {
   if (!slideCanvas) return;
-  const q = questions[activePreviewIdx] || questions[0];
-  previewTitle.textContent = `SLIDE PREVIEW (Q${activePreviewIdx + 1})`;
-  slideFooterNum.textContent = `${activePreviewIdx + 1}`;
-
-  if (!q || !q.question.trim()) {
-    slideQContent.innerHTML = '<span style="color: #667; font-style: italic;">(Empty question statement. Type in the editor on the left to see live preview.)</span>';
+  const q = questions[0];
+  if (!q) {
+    slideQContent.innerHTML = '<span style="color: #64748b; font-style: italic;">No questions loaded yet.</span>';
     slideOptsCont.innerHTML = '';
     return;
   }
 
-  // Split lines / paragraphs
   const paragraphs = q.question.split(/\n\s*\n/);
   let contentHtml = '';
 
@@ -230,7 +355,6 @@ function updatePreview() {
 
   slideQContent.innerHTML = contentHtml;
 
-  // Render MCQ Options
   if (q.is_mcq && q.options.some(o => o && o.trim())) {
     let optsHtml = '';
     ['A', 'B', 'C', 'D'].forEach((lbl, i) => {
@@ -257,308 +381,26 @@ function updatePreview() {
     slideOptsCont.innerHTML = '';
   }
 
-  // Trigger MathJax typesetting if loaded
   if (window.MathJax && window.MathJax.typesetPromise) {
     window.MathJax.typesetPromise([slideCanvas]).catch(() => {});
   }
 }
 
-// ── Add Question ─────────────────────────────────────────────────────────────
-btnAdd?.addEventListener('click', () => {
-  questions.push(createEmptyQuestion());
-  activePreviewIdx = questions.length - 1;
-  renderList();
-  qListEl.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
-});
-
-// ── Multi-Subject Example Presets ────────────────────────────────────────────
-const EXAMPLE_SETS = {
-  physics: [
-    {
-      id: 101,
-      question: `একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\n\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\n\n$$KE = \\frac{1}{2}mv^2$$`,
-      is_mcq: true,
-      options: ['100 J', '50 J', '200 J', '25 J']
-    },
-    {
-      id: 102,
-      question: `এটা $q = 1.6 \\times 10^{-19}$ C আধান $v = 2 \\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\n\nA charge $q = 1.6 \\times 10^{-19}$ C moves with velocity $v = 2 \\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\sin\\theta$`,
-      is_mcq: true,
-      options: ['$1.6 \\times 10^{-13}$ N', '$3.2 \\times 10^{-13}$ N', '$0.8 \\times 10^{-13}$ N', '0 N']
-    }
-  ],
-  chemistry: [
-    {
-      id: 201,
-      question: `$T = 300$ K উষ্ণতাত আৰু $V = 10$ L আয়তনত $n = 2$ ম'ল আদৰ্শ গেছৰ চাপ নিৰ্ণয় কৰা। ($R = 0.0821$ L·atm/(mol·K))\n\nFind the pressure of $n = 2$ moles of an ideal gas at temperature $T = 300$ K occupying a volume of $V = 10$ L using:\n\n$$PV = nRT$$`,
-      is_mcq: true,
-      options: ['4.92 atm', '2.46 atm', '9.84 atm', '1.23 atm']
-    },
-    {
-      id: 202,
-      question: `এটা জলীয় দ্ৰৱত হাইড্ৰ'নিয়াম আয়নৰ গাঢ়তা $[H^+] = 1.0 \\times 10^{-4}$ M হ'লে দ্ৰৱটোৰ $pH$ কিমান হ'ব?\n\nIf the hydrogen ion concentration in an aqueous solution is $[H^+] = 1.0 \\times 10^{-4}$ M, calculate the $pH$ of the solution:\n\n$$pH = -\\log_{10}[H^+]$$`,
-      is_mcq: true,
-      options: ['4', '10', '7', '14']
-    }
-  ],
-  maths: [
-    {
-      id: 301,
-      question: `তলৰ নিৰ্দিষ্ট সমাকলনটোৰ মান নিৰ্ণয় কৰা:\n\nEvaluate the following definite integral:\n\n$$\\int_{0}^{2} (3x^2 + 2x + 1) \\, dx$$`,
-      is_mcq: true,
-      options: ['14', '12', '16', '10']
-    },
-    {
-      id: 302,
-      question: `দ্বিঘাত সমীকৰণ $2x^2 - 5x + 2 = 0$ ৰ মূল দুটা নিৰ্ণয় কৰা:\n\nFind the roots of the quadratic equation $2x^2 - 5x + 2 = 0$ using the quadratic formula:\n\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$`,
-      is_mcq: true,
-      options: ['$x = 2, \\frac{1}{2}$', '$x = 1, 2$', '$x = -2, -\\frac{1}{2}$', '$x = 3, \\frac{1}{3}$']
-    }
-  ]
-};
-
-btnLoadExample?.addEventListener('click', () => {
-  const mode = selectExample?.value || 'all';
-  if (mode === 'physics') {
-    inputSubject.value = 'Physics';
-    inputExamLabel.value = 'Class XI · Physics';
-    questions = JSON.parse(JSON.stringify(EXAMPLE_SETS.physics));
-  } else if (mode === 'chemistry') {
-    inputSubject.value = 'Chemistry';
-    inputExamLabel.value = 'Class XII · Chemistry';
-    questions = JSON.parse(JSON.stringify(EXAMPLE_SETS.chemistry));
-  } else if (mode === 'maths') {
-    inputSubject.value = 'Mathematics';
-    inputExamLabel.value = 'Class XII · Mathematics';
-    questions = JSON.parse(JSON.stringify(EXAMPLE_SETS.maths));
-  } else {
-    inputSubject.value = 'Science & Mathematics';
-    inputExamLabel.value = 'Model Exam · 2025';
-    questions = [
-      ...JSON.parse(JSON.stringify(EXAMPLE_SETS.physics)),
-      ...JSON.parse(JSON.stringify(EXAMPLE_SETS.chemistry)),
-      ...JSON.parse(JSON.stringify(EXAMPLE_SETS.maths))
-    ];
-  }
-  activePreviewIdx = 0;
-  renderList();
-});
-
-// ── Copy AI Prompt ───────────────────────────────────────────────────────────
-const AI_CONVERSION_PROMPT = `You are an expert Science & Mathematics question paper extractor and formatter.
-Analyze the provided document (PDF, exam paper images, or raw text) containing multiple questions (e.g. 5 to 100 questions).
-
-### OUTPUT FORMAT REQUIREMENT (COPY CODE MODE):
-- Output your ENTIRE response inside a SINGLE markdown code block:
-\`\`\`json
-{
-  "subject": "Physics",
-  "exam_label": "Class XII · Final Exam 2025",
-  "questions": [ ... ]
-}
-\`\`\`
-- Do NOT output any introductory text, greetings, explanations, or notes before or after the code block.
-- Start directly with \`\`\`json and end directly with \`\`\` so I can click the "Copy code" button to copy the whole JSON file in one click.
-
----
-
-### CRITICAL RULES TO AVOID MISTAKES:
-
-1. EXTRACT ALL QUESTIONS (NO TRUNCATION):
-   - Extract EVERY question from the entire document from Q1 to the final question into the "questions" array.
-   - NEVER truncate, summarize, or stop after a few questions.
-
-2. JSON ESCAPING FOR LATEX (CRITICAL):
-   - All LaTeX backslashes inside JSON strings MUST be escaped with a double backslash (\\\\).
-   - Write: \\\\frac{1}{2}, \\\\times, \\\\cdot, \\\\theta, \\\\sin, \\\\cos, \\\\alpha, \\\\beta, \\\\int, \\\\pm.
-   - ❌ WRONG: "\\frac{1}{2}" (breaks JSON syntax)
-   - ✅ CORRECT: "\\\\frac{1}{2}"
-
-3. MATH DELIMITERS:
-   - Use $...$ for inline formulas (e.g. $m = 2$ kg, $v = 10$ m/s, $q = 1.6 \\\\times 10^{-19}$ C, $F = qvB\\\\sin\\\\theta$).
-   - Use $$...$$ on its own line for standalone display formulas (e.g. $$KE = \\\\frac{1}{2}mv^2$$, $$\\int_0^2 (3x^2 + 2x + 1) dx$$).
-
-4. BILINGUAL QUESTIONS:
-   - Put the Assamese (or regional language) question first.
-   - Follow it with two newlines (\\n\\n).
-   - Then put the English version.
-   - If the source is only in one language (English or Assamese), preserve that language.
-
-5. MCQ OPTIONS (CLEAN VALUES ONLY):
-   - Set "is_mcq": true and provide exactly 4 options in "options": ["...", "...", "...", "..."].
-   - Provide ONLY the option value/formula. Do NOT include option letter prefixes!
-   - ❌ WRONG: "options": ["(A) 100 J", "(B) 50 J", "(C) 200 J", "(D) 25 J"]
-   - ❌ WRONG: "options": ["A. 100 J", "B. 50 J", "C. 200 J", "D. 25 J"]
-   - ✅ CORRECT: "options": ["100 J", "50 J", "200 J", "25 J"]
-
-6. NON-MCQ / SUBJECTIVE QUESTIONS:
-   - Set "is_mcq": false and "options": [].
-
-7. NO ANSWERS OR KEYS:
-   - Do NOT include correct answers, checkmarks, solutions, or answer keys anywhere.
-   - Do NOT include an "answer" or "correct_answer" field.
-
-8. ABSOLUTELY NO CITATIONS OR GROUNDING MARKS:
-   - Do NOT include any citations, source tags, or grounding markers like [cite: 1], [cite: 1, 2], [citation: ...], or footnotes.
-   - Strip all citation markers from the source document completely. Output only pure question text and math.
-
----
-
-### EXAMPLE FORMAT:
-
-\`\`\`json
-{
-  "subject": "Physics",
-  "exam_label": "Class XII · Final Exam 2025",
-  "questions": [
-    {
-      "question": "এটা $q = 1.6 \\\\times 10^{-19}$ C আধান $v = 2 \\\\times 10^6$ m/s বেগেৰে $B = 0.5$ T চুম্বক ক্ষেত্ৰৰ লম্বভাৱে গতি কৰিছে। আধানটোৰ ওপৰত ক্ৰিয়া কৰা চুম্বকীয় বল কিমান?\\n\\nA charge $q = 1.6 \\\\times 10^{-19}$ C moves with velocity $v = 2 \\\\times 10^6$ m/s perpendicular to a magnetic field $B = 0.5$ T. Find the magnetic force acting on it:  $F = qvB\\\\sin\\\\theta$",
-      "is_mcq": true,
-      "options": [
-        "$1.6 \\\\times 10^{-13}$ N",
-        "$3.2 \\\\times 10^{-13}$ N",
-        "$0.8 \\\\times 10^{-13}$ N",
-        "0 N"
-      ]
-    },
-    {
-      "question": "একটি বস্তুৰ ভৰ $m = 2$ kg আৰু বেগ $v = 10$ m/s। বস্তুটোৰ গতিশক্তি নির্ণয় কৰা।\\n\\nA body of mass $m = 2$ kg moves with velocity $v = 10$ m/s. Find its kinetic energy using:\\n\\n$$KE = \\\\frac{1}{2}mv^2$$",
-      "is_mcq": true,
-      "options": [
-        "100 J",
-        "50 J",
-        "200 J",
-        "25 J"
-      ]
-    },
-    {
-      "question": "তলৰ নিৰ্দিষ্ট সমাকলনটোৰ মান নিৰ্ণয় কৰা:\\n\\nEvaluate the following definite integral:\\n\\n$$\\\\int_{0}^{2} (3x^2 + 2x + 1) \\\\, dx$$",
-      "is_mcq": false,
-      "options": []
-    }
-  ]
-}
-\`\`\`
-`;
-
-btnCopyPrompt?.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(AI_CONVERSION_PROMPT);
-    const origHtml = btnCopyPrompt.innerHTML;
-    btnCopyPrompt.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied to Clipboard!</span>';
-    setTimeout(() => { btnCopyPrompt.innerHTML = origHtml; }, 2200);
-  } catch (err) {
-    alert('Could not copy to clipboard: ' + err.message);
-  }
-});
-
-// ── Unified JSON Parser ───────────────────────────────────────────────────────
-function loadQuestionsFromJson(rawText) {
-  if (!rawText || !rawText.trim()) {
-    throw new Error('JSON content is empty.');
-  }
-  const clean = rawText.trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '')
-    .trim();
-
-  let parsed;
-  try {
-    parsed = JSON.parse(clean);
-  } catch (e1) {
-    // Auto-repair unescaped LaTeX backslashes if AI didn't double-escape
-    try {
-      const repaired = clean.replace(/\\(?!["\\/bfnrtu])/g, '\\\\');
-      parsed = JSON.parse(repaired);
-    } catch (e2) {
-      throw new Error('Invalid JSON syntax. Please check for missing brackets or unescaped quotes.');
-    }
-  }
-
-  let rawQuestions = [];
-  let subject = '';
-  let examLabel = '';
-
-  if (Array.isArray(parsed)) {
-    rawQuestions = parsed;
-  } else if (parsed && typeof parsed === 'object') {
-    if (Array.isArray(parsed.questions)) {
-      rawQuestions = parsed.questions;
-    }
-    if (parsed.subject) subject = String(parsed.subject);
-    if (parsed.exam_label) examLabel = String(parsed.exam_label);
-  }
-
-  if (!rawQuestions || rawQuestions.length === 0) {
-    throw new Error('No questions found! JSON must contain a "questions" array or an array of question objects.');
-  }
-
-  if (subject && inputSubject) inputSubject.value = subject;
-  if (examLabel && inputExamLabel) inputExamLabel.value = examLabel;
-
-  questions = rawQuestions.map((q, idx) => {
-    let opts = Array.isArray(q.options) ? q.options.map(o => stripCitations(o)) : [];
-    // Strip accidental "(A) ", "A. ", "A) " prefixes
-    opts = opts.map(o => o.replace(/^\(?[A-Da-d]\)?[\.\:\)]\s*/, ''));
-    const isMcq = Boolean(q.is_mcq || opts.some(o => o.trim()));
-    while (opts.length < 4) opts.push('');
-    return {
-      id: Date.now() + idx + Math.random(),
-      question: stripCitations(q.question || ''),
-      is_mcq: isMcq,
-      options: opts.slice(0, 4)
-    };
-  });
-
-  activePreviewIdx = 0;
-  renderList();
-  return questions.length;
-}
-
-// ── Open JSON File ────────────────────────────────────────────────────────────
-btnOpenFile?.addEventListener('click', () => {
-  if (inputFile) {
-    inputFile.value = '';
-    inputFile.click();
-  }
-});
-
-inputFile?.addEventListener('change', (e) => {
-  const file = e.target?.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (evt) => {
-    try {
-      const count = loadQuestionsFromJson(evt.target.result);
-      alert(`Successfully loaded ${count} questions from "${file.name}"!`);
-    } catch (err) {
-      alert('Failed to load JSON file:\n' + err.message);
-    }
-  };
-  reader.onerror = () => {
-    alert('Error reading file: ' + (reader.error?.message || 'Unknown error'));
-  };
-  reader.readAsText(file, 'UTF-8');
-});
-
-// ── Save JSON File ────────────────────────────────────────────────────────────
-btnSaveFile?.addEventListener('click', () => {
-  const validQs = questions.filter(q => q.question.trim());
-  if (validQs.length === 0) {
-    alert('No questions to save.');
+btnSaveJson?.addEventListener('click', () => {
+  if (!questions.length) {
+    alert('No questions loaded to save.');
     return;
   }
   const exportData = {
     subject: inputSubject?.value.trim() || 'Physics',
     exam_label: inputExamLabel?.value.trim() || '',
-    questions: validQs.map(q => ({
-      question: stripCitations(q.question),
+    questions: questions.map(q => ({
+      question: q.question,
       is_mcq: q.is_mcq,
-      options: q.is_mcq ? q.options.map(o => stripCitations(o)) : []
+      options: q.is_mcq ? q.options : []
     }))
   };
-  const jsonStr = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -570,73 +412,35 @@ btnSaveFile?.addEventListener('click', () => {
   URL.revokeObjectURL(url);
 });
 
-// ── Paste JSON Modal Handlers ────────────────────────────────────────────────
-function closePasteModal() {
-  if (modalPaste) modalPaste.style.display = 'none';
-}
-
-btnPasteJson?.addEventListener('click', () => {
-  if (modalPaste) {
-    modalPaste.style.display = 'flex';
-    if (textareaPaste) {
-      textareaPaste.value = '';
-      setTimeout(() => textareaPaste.focus(), 50);
-    }
-  }
-});
-
-btnClosePaste?.addEventListener('click', closePasteModal);
-btnCancelPaste?.addEventListener('click', closePasteModal);
-modalPaste?.addEventListener('click', (e) => {
-  if (e.target === modalPaste) closePasteModal();
-});
-
-btnApplyPaste?.addEventListener('click', () => {
-  const raw = textareaPaste?.value.trim() || '';
-  if (!raw) {
-    alert('Please paste JSON text first.');
-    return;
-  }
-  try {
-    const count = loadQuestionsFromJson(raw);
-    closePasteModal();
-  } catch (err) {
-    alert('JSON Parse Error:\n' + err.message);
-  }
-});
-
-// ── Generate PowerPoint Presentation ─────────────────────────────────────────
-btnGenerate?.addEventListener('click', async () => {
-  const validQs = questions.filter(q => q.question.trim());
-  if (validQs.length === 0) {
-    alert('Please enter at least one question before generating.');
+btnGeneratePpt?.addEventListener('click', async () => {
+  if (!questions.length) {
+    alert('Please load questions in Step 2 first.');
+    openStep(2);
     return;
   }
 
-  // Ask for output folder
   let saveDir;
   try {
     saveDir = await window.electronAPI.selectDirectory({ title: 'Select Output Folder for PowerPoint' });
   } catch (e) {
-    console.error('Directory picker error:', e);
+    console.error(e);
   }
   if (!saveDir) return;
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const subClean = (inputSubject?.value.trim() || 'Questions').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const subClean = (inputSubject?.value.trim() || 'Presentation').replace(/[^a-zA-Z0-9_-]/g, '_');
   const fullPath = `${saveDir}\\${subClean}_${timestamp}.pptx`;
 
-  btnGenerate.disabled = true;
-  const origBtnText = btnGenerate.innerHTML;
-  btnGenerate.innerHTML = '<svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Generating PowerPoint...</span>';
+  btnGeneratePpt.disabled = true;
+  btnGenerateText.textContent = 'Generating Presentation...';
 
   const payload = {
     subject: inputSubject?.value.trim() || 'Physics',
     exam_label: inputExamLabel?.value.trim() || '',
-    questions: validQs.map(q => ({
-      question: stripCitations(q.question),
+    questions: questions.map(q => ({
+      question: q.question,
       is_mcq: q.is_mcq,
-      options: q.is_mcq ? q.options.map(o => stripCitations(o)) : []
+      options: q.is_mcq ? q.options : []
     })),
     _output: fullPath
   };
@@ -644,23 +448,55 @@ btnGenerate?.addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.mathPptGenerate(payload);
     if (result && result.success) {
-      btnGenerate.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Generated Successfully!</span>';
-      // Reveal in file explorer
+      btnGenerateText.textContent = 'Downloaded & Saved!';
       await window.electronAPI.showInFolder(result.output);
       setTimeout(() => {
-        btnGenerate.innerHTML = origBtnText;
-        btnGenerate.disabled = false;
+        btnGenerateText.textContent = 'Download PPT';
+        btnGeneratePpt.disabled = false;
       }, 3500);
     } else {
-      alert('PowerPoint Generation Error:\n' + (result?.error || 'Unknown generation failure.'));
-      btnGenerate.innerHTML = origBtnText;
-      btnGenerate.disabled = false;
+      alert('PowerPoint Generation Error:\n' + (result?.error || 'Unknown failure.'));
+      btnGenerateText.textContent = 'Download PPT';
+      btnGeneratePpt.disabled = false;
     }
   } catch (err) {
-    alert('Execution Error: ' + err.message);
-    btnGenerate.innerHTML = origBtnText;
-    btnGenerate.disabled = false;
+    alert('Error: ' + err.message);
+    btnGenerateText.textContent = 'Download PPT';
+    btnGeneratePpt.disabled = false;
   }
+});
+
+// ── Theme Toggle (Light / Dark) ─────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('ppt_maker_theme') || 'light';
+  applyTheme(saved);
+}
+
+function applyTheme(theme) {
+  if (theme === 'dark') {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    themeMoonIcon.innerHTML = `
+      <circle cx="12" cy="12" r="4"/>
+      <path d="M12 2v2"/>
+      <path d="M12 20v2"/>
+      <path d="m4.93 4.93 1.41 1.41"/>
+      <path d="m17.66 17.66 1.41 1.41"/>
+      <path d="M2 12h2"/>
+      <path d="M20 12h2"/>
+      <path d="m6.34 17.66-1.41 1.41"/>
+      <path d="m19.07 4.93-1.41 1.41"/>
+    `;
+    localStorage.setItem('ppt_maker_theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+    themeMoonIcon.innerHTML = `<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`;
+    localStorage.setItem('ppt_maker_theme', 'light');
+  }
+}
+
+btnThemeToggle?.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
 });
 
 // ── Settings & Live Sync Modal ───────────────────────────────────────────────
@@ -679,7 +515,6 @@ modalSettings?.addEventListener('click', (e) => {
   if (e.target === modalSettings) closeSettingsModal();
 });
 
-// Load Config
 async function initConfig() {
   try {
     const cfg = await window.electronAPI.getConfig();
@@ -688,11 +523,11 @@ async function initConfig() {
       if (inputGithubToken) inputGithubToken.value = cfg.github_token || '';
       if (checkboxAutoSync) checkboxAutoSync.checked = cfg.auto_sync !== false;
       if (!cfg.github_repo) {
-        updateSyncPill({ status: 'no_repo', message: 'Click to Set GitHub Repo' });
+        updateSyncPill({ status: 'no_repo', message: 'Set Repo' });
       }
     }
   } catch (err) {
-    console.warn('Failed to load initial config:', err);
+    console.warn('Config load error:', err);
   }
 }
 
@@ -704,17 +539,16 @@ function updateSyncPill(info) {
     btnSyncPill.title = `Synced from GitHub (${info.date ? new Date(info.date).toLocaleTimeString() : 'latest'}). Click to configure.`;
   } else if (info.status === 'syncing') {
     syncText.textContent = 'Syncing...';
-    btnSyncPill.title = info.message || 'Checking GitHub raw repository...';
+    btnSyncPill.title = info.message || 'Checking GitHub repository...';
   } else if (info.status === 'no_repo') {
     syncText.textContent = 'Set GitHub Repo';
-    btnSyncPill.title = 'Click to connect your GitHub repository for instant live updates.';
+    btnSyncPill.title = 'Click to configure GitHub repo for live script sync.';
   } else {
     syncText.textContent = 'Offline / Local';
-    btnSyncPill.title = 'Running bundled generator script. Click to check sync.';
+    btnSyncPill.title = 'Running local generator script. Click to check sync.';
   }
 }
 
-// IPC listener for background sync updates
 if (window.electronAPI?.onSyncStatus) {
   window.electronAPI.onSyncStatus((statusInfo) => {
     updateSyncPill(statusInfo);
@@ -725,7 +559,6 @@ btnCheckSyncNow?.addEventListener('click', async () => {
   btnCheckSyncNow.disabled = true;
   btnCheckSyncNow.textContent = 'Checking…';
   try {
-    // Save current repo field first
     const repo = inputGithubRepo.value.trim();
     const token = inputGithubToken ? inputGithubToken.value.trim() : '';
     await window.electronAPI.saveConfig({
@@ -735,14 +568,14 @@ btnCheckSyncNow?.addEventListener('click', async () => {
     });
     const result = await window.electronAPI.checkSync();
     if (result && result.status === 'synced') {
-      alert('Sync Successful! Generator logic is now running the latest version from GitHub.');
+      alert('Sync Successful! Latest generator logic is active.');
     } else if (result && result.status === 'no_repo') {
-      alert('Please enter a valid GitHub repository in the format "username/repo" or full URL.');
+      alert('Please enter a GitHub repository (e.g. iamfaruk01/ppt-maker).');
     } else {
-      alert('Sync checked: ' + (result?.message || 'Using local script'));
+      alert('Sync status: ' + (result?.message || 'Using local script'));
     }
   } catch (err) {
-    alert('Sync check failed: ' + err.message);
+    alert('Sync error: ' + err.message);
   } finally {
     btnCheckSyncNow.disabled = false;
     btnCheckSyncNow.textContent = 'Check Sync Now';
@@ -769,11 +602,7 @@ btnInstallFont?.addEventListener('click', async () => {
   btnInstallFont.textContent = 'Installing…';
   try {
     const res = await window.electronAPI.installFont();
-    if (res && res.success) {
-      alert('Banikanta font installation command executed successfully.');
-    } else {
-      alert('Font installation note:\n' + (res?.error || 'Completed'));
-    }
+    alert(res && res.success ? 'Banikanta font installation triggered.' : 'Notice: ' + (res?.error || 'Done'));
   } catch (err) {
     alert('Font installation error: ' + err.message);
   } finally {
@@ -783,5 +612,10 @@ btnInstallFont?.addEventListener('click', async () => {
 });
 
 // ── Startup ──────────────────────────────────────────────────────────────────
+initTheme();
 initConfig();
-renderList();
+// Pre-load default physics sample into textarea so step 2 is ready to try
+textareaJson.value = JSON.stringify(EXAMPLE_SETS.physics, null, 2);
+parseAndLoad(textareaJson.value);
+// But keep Step 1 open on initial page load matching the screenshot!
+openStep(1);
