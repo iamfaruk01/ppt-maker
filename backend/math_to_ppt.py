@@ -192,6 +192,36 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                 res.append(make_r('√'))
             continue
 
+        # Accent commands: \vec, \hat, \bar, \dot, \ddot, \tilde, \overrightarrow
+        # OMML: <m:acc><m:accPr><m:chr m:val="char"/></m:accPr><m:e>...</m:e></m:acc>
+        ACCENT_CMDS = {
+            'vec': '\u20d7',             # combining right arrow above ⃗
+            'overrightarrow': '\u20d7',
+            'hat': '\u0302',             # combining circumflex ̂
+            'bar': '\u0305',             # combining overline ̄
+            'overline': '\u0305',
+            'dot': '\u0307',             # combining dot above ̇
+            'ddot': '\u0308',            # combining diaeresis ̈
+            'tilde': '\u0303',           # combining tilde ̃
+            'breve': '\u0306',           # combining breve ̆
+            'grave': '\u0300',
+            'acute': '\u0301',
+            'check': '\u030c',
+        }
+        accent_matched = False
+        for acc_cmd, acc_char in ACCENT_CMDS.items():
+            if s.startswith('\\' + acc_cmd, i):
+                i += 1 + len(acc_cmd)
+                while i < n and s[i].isspace(): i += 1
+                arg_str, i = extract_braced_arg(i)
+                arg_omml = "".join(parse_math_tokens(arg_str, color_hex, sz))
+                safe_char = acc_char.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                res.append(f'<m:acc><m:accPr><m:chr m:val="{safe_char}"/></m:accPr><m:e>{arg_omml}</m:e></m:acc>')
+                accent_matched = True
+                break
+        if accent_matched:
+            continue
+
         # Commands: Greek, symbols, functions
         if c == '\\':
             m = re.match(r'\\([a-zA-Z]+)', s[i:])

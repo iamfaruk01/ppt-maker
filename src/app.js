@@ -277,7 +277,7 @@ function normalizeMathFractions(str) {
 function wrapBareLatexCommands(str) {
   if (!str || !str.includes('\\')) return str;
   // Regex to find bare LaTeX commands with braces outside $
-  const BARE_LATEX = /\\(?:frac\{[^}]+\}\{[^}]+\}|sqrt(?:\[[^\]]*\])?\{[^}]+\}|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?)/g;
+  const BARE_LATEX = /\\(?:frac\{[^}]+\}\{[^}]+\}|sqrt(?:\[[^\]]*\])?\{[^}]+\}|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|(?:vec|hat|bar|overline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check)\{[^}]+\})/g;
   // Split on existing $...$ segments so we don't double-wrap
   const parts = str.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g);
   return parts.map((part, i) => {
