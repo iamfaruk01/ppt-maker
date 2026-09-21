@@ -90,11 +90,13 @@ def wrap_bare_latex(text):
         r'(?<!\$)'          # not already preceded by $
         r'(\\'
         r'(?:frac\{[^}]+\}\{[^}]+\}'   # \frac{A}{B}
+        r'|binom\{[^}]+\}\{[^}]+\}'   # \binom{n}{r}
         r'|sqrt(?:\[[^\]]*\])?\{[^}]+\}'   # \sqrt{x} or \sqrt[n]{x}
+        r'|begin\{[a-zA-Z*]+\}[\s\S]*?end\{[a-zA-Z*]+\}'  # environments
         r'|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \sum or \sum_{a}^{b}
         r'|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \int or \int_{a}^{b}
         r'|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \prod
-        r'|(?:vec|hat|bar|overline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check)\{[^}]+\}'  # accents
+        r'|(?:vec|hat|bar|overline|underline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check|mathbf|mathrm|mathit|text)\{[^}]+\}'  # accents/styles
         r'|(?:sin|cos|tan|cot|sec|csc|log|ln|lg|lim|exp|arcsin|arccos|arctan)(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)*(?:\([^\)]+\))?(?:\s+[a-zA-Z0-9]+)?'  # functions with sup/sub/arg
         r'|[a-zA-Z]+(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)+'  # any cmd with sub/sup e.g. \theta_1, \pi^2
         r'|(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|propto|partial|nabla|degree|pm|mp|times|cdot|approx|neq|leq|geq|to|rightarrow|leftarrow)'  # greek/symbols
@@ -237,6 +239,75 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                 res.append(make_r(')'))
             continue
 
+        # \\binom{n}{r}
+        if s.startswith(r'\binom', i):
+            i += 6
+            while i < n and s[i].isspace(): i += 1
+            n_str, i = extract_braced_arg(i)
+            while i < n and s[i].isspace(): i += 1
+            r_str, i = extract_braced_arg(i)
+            n_omml = "".join(parse_math_tokens(n_str, color_hex, sz))
+            r_omml = "".join(parse_math_tokens(r_str, color_hex, sz))
+            res.append(f'<m:d><m:dPr><m:begChr m:val="("/><m:endChr m:val=")"/><m:grow/></m:dPr><m:e><m:f><m:fPr><m:type m:val="noBar"/></m:fPr><m:num>{n_omml}</m:num><m:den>{r_omml}</m:den></m:f></m:e></m:d>')
+            continue
+
+        # Environments: matrix, bmatrix, pmatrix, vmatrix, cases, aligned
+        if s.startswith(r'\begin{', i):
+            m_env = re.match(r'\\begin\{([a-zA-Z*]+)\}', s[i:])
+            if m_env:
+                env_name = m_env.group(1)
+                end_tag = f'\\end{{{env_name}}}'
+                end_pos = s.find(end_tag, i)
+                if end_pos != -1:
+                    env_body = s[i + len(m_env.group(0)):end_pos]
+                    i = end_pos + len(end_tag)
+
+                    if env_name in ['matrix', 'bmatrix', 'pmatrix', 'vmatrix', 'Vmatrix']:
+                        delims = {
+                            'matrix': ('', ''),
+                            'bmatrix': ('[', ']'),
+                            'pmatrix': ('(', ')'),
+                            'vmatrix': ('|', '|'),
+                            'Vmatrix': ('‖', '‖'),
+                        }
+                        beg_c, end_c = delims.get(env_name, ('[', ']'))
+                        rows = re.split(r'\\\\|\\cr', env_body)
+                        mr_list = []
+                        for r_text in rows:
+                            if not r_text.strip(): continue
+                            cells = r_text.split('&')
+                            e_list = []
+                            for c_text in cells:
+                                c_omml = "".join(parse_math_tokens(c_text.strip(), color_hex, sz))
+                                e_list.append(f'<m:e>{c_omml}</m:e>')
+                            mr_list.append(f'<m:mr>{"".join(e_list)}</m:mr>')
+                        m_xml = f'<m:m>{"".join(mr_list)}</m:m>'
+                        if beg_c or end_c:
+                            res.append(f'<m:d><m:dPr><m:begChr m:val="{beg_c}"/><m:endChr m:val="{end_c}"/><m:grow/></m:dPr><m:e>{m_xml}</m:e></m:d>')
+                        else:
+                            res.append(m_xml)
+                        continue
+                    elif env_name == 'cases':
+                        rows = re.split(r'\\\\|\\cr', env_body)
+                        e_list = []
+                        for r_text in rows:
+                            if not r_text.strip(): continue
+                            c_text = r_text.replace('&', ' ')
+                            c_omml = "".join(parse_math_tokens(c_text.strip(), color_hex, sz))
+                            e_list.append(f'<m:e>{c_omml}</m:e>')
+                        res.append(f'<m:d><m:dPr><m:begChr m:val="{{"/><m:endChr m:val=""/><m:grow/></m:dPr><m:e><m:eqArr>{"".join(e_list)}</m:eqArr></m:e></m:d>')
+                        continue
+                    elif env_name in ['aligned', 'align', 'align*', 'gather', 'gathered', 'split']:
+                        rows = re.split(r'\\\\|\\cr', env_body)
+                        e_list = []
+                        for r_text in rows:
+                            if not r_text.strip(): continue
+                            c_text = r_text.replace('&', '')
+                            c_omml = "".join(parse_math_tokens(c_text.strip(), color_hex, sz))
+                            e_list.append(f'<m:e>{c_omml}</m:e>')
+                        res.append(f'<m:eqArr>{"".join(e_list)}</m:eqArr>')
+                        continue
+
         # \\sqrt[n]{x} or \\sqrt{x}
         if s.startswith(r'\sqrt', i):
             i += 5
@@ -315,6 +386,7 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                              'll', 'gg', 'lll', 'ggg', 'ne',
                              'geqq', 'leqq', 'dagger', 'ddagger',
                              'star', 'ast', 'checkmark',
+                             'percent', 'circ', 'hbar', 'ell',
                              'lvert', 'rvert', 'lVert', 'rVert',
                              'lceil', 'rceil', 'lfloor', 'rfloor',
                              'langle', 'rangle', 'lbrace', 'rbrace',
@@ -336,6 +408,7 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         'll': '≪', 'gg': '≫', 'lll': '⋘', 'ggg': '⋙',
                         'geqq': '≧', 'leqq': '≦', 'dagger': '†', 'ddagger': '‡',
                         'star': '⋆', 'ast': '∗', 'checkmark': '✓',
+                        'percent': '%', 'circ': '∘', 'hbar': 'ħ', 'ell': 'ℓ',
                         # Delimiters
                         'lvert': '|', 'rvert': '|', 'lVert': '‖', 'rVert': '‖',
                         'lceil': '⌈', 'rceil': '⌉', 'lfloor': '⌊', 'rfloor': '⌋',
@@ -343,6 +416,41 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         'ldots': '…', 'cdots': '⋯', 'vdots': '⋮', 'ddots': '⋱',
                     }
                     res.append(make_r(sym_dict.get(cmd, cmd)))
+                elif cmd in ['sum', 'prod', 'coprod', 'int', 'iint', 'iiint', 'oint']:
+                    op_map = {
+                        'sum': ('∑', 'undOvr'),
+                        'prod': ('∏', 'undOvr'),
+                        'coprod': ('∐', 'undOvr'),
+                        'int': ('∫', 'subSup'),
+                        'iint': ('∬', 'subSup'),
+                        'iiint': ('∭', 'subSup'),
+                        'oint': ('∮', 'subSup'),
+                    }
+                    op_char, lim_loc = op_map.get(cmd, ('∑', 'undOvr'))
+                    has_sub = False
+                    has_sup = False
+                    sub_str = ""
+                    sup_str = ""
+                    while i < n and (s[i] in ['^', '_'] or s[i].isspace()):
+                        if s[i].isspace():
+                            i += 1
+                            continue
+                        op = s[i]
+                        i += 1
+                        while i < n and s[i].isspace(): i += 1
+                        arg_val, i = extract_braced_arg(i)
+                        if op == '^':
+                            has_sup = True
+                            sup_str = arg_val
+                        else:
+                            has_sub = True
+                            sub_str = arg_val
+                    sub_xml = f'<m:sub>{"".join(parse_math_tokens(sub_str, color_hex, sz))}</m:sub>' if has_sub else '<m:sub/>'
+                    sup_xml = f'<m:sup>{"".join(parse_math_tokens(sup_str, color_hex, sz))}</m:sup>' if has_sup else '<m:sup/>'
+                    res.append(f'<m:nary><m:naryPr><m:chr m:val="{op_char}"/><m:limLoc m:val="{lim_loc}"/></m:naryPr>{sub_xml}{sup_xml}<m:e/></m:nary>')
+                    if i < n and s[i] not in ['^', '_', ' ', '(', '[', ',', ')', ']', '+', '-', '=', '*', '/']:
+                        res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
+                    continue
                 elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc',
                              'arcsin', 'arccos', 'arctan', 'arccot', 'arcsec', 'arccsc',
                              'sinh', 'cosh', 'tanh', 'coth', 'sech', 'csch',
@@ -352,12 +460,39 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{cmd}</m:t></m:r>')
                     if i < n and s[i] not in ['^', '_', ' ', '(', '[', ',', ')', ']', '+', '-', '=', '*', '/']:
                         res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
-                elif cmd in ['left', 'right']:
+                elif cmd in ['quad', 'qquad']:
+                    sp_len = 8 if cmd == 'qquad' else 4
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve">{" " * sp_len}</m:t></m:r>')
+                elif cmd in ['displaystyle', 'textstyle', 'scriptstyle', 'scriptscriptstyle', 'limits', 'nolimits']:
                     pass
-                elif cmd in ['mathrm', 'mathbf', 'text', 'mathit']:
+                elif cmd in ['left', 'right']:
+                    while i < n and s[i].isspace(): i += 1
+                    if i < n and s[i] == '.':
+                        i += 1  # skip empty delimiter
+                elif cmd == 'mathbf':
+                    while i < n and s[i].isspace(): i += 1
+                    txt_arg, i = extract_braced_arg(i)
+                    safe = str(txt_arg).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    res.append(f'<m:r><a:rPr sz="{sz}" b="1"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t>{safe}</m:t></m:r>')
+                elif cmd == 'mathit':
+                    while i < n and s[i].isspace(): i += 1
+                    txt_arg, i = extract_braced_arg(i)
+                    safe = str(txt_arg).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    res.append(f'<m:r><a:rPr sz="{sz}" i="1"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t>{safe}</m:t></m:r>')
+                elif cmd in ['mathrm', 'text']:
                     while i < n and s[i].isspace(): i += 1
                     txt_arg, i = extract_braced_arg(i)
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{txt_arg}</m:t></m:r>')
+                elif cmd == 'underline':
+                    while i < n and s[i].isspace(): i += 1
+                    txt_arg, i = extract_braced_arg(i)
+                    safe = str(txt_arg).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    res.append(f'<m:r><a:rPr sz="{sz}" u="sng"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t>{safe}</m:t></m:r>')
+                elif cmd == 'overline':
+                    while i < n and s[i].isspace(): i += 1
+                    txt_arg, i = extract_braced_arg(i)
+                    arg_omml = "".join(parse_math_tokens(txt_arg, color_hex, sz))
+                    res.append(f'<m:bar><m:barPr><m:pos m:val="top"/></m:barPr><m:e>{arg_omml}</m:e></m:bar>')
                 else:
                     # Unknown command — render as \cmd text, and consume any following {arg}
                     res.append(make_r('\\' + cmd))
@@ -373,9 +508,29 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         i = saved_i  # restore: don't eat whitespace before non-brace
                 continue
             else:
-                i += 1
-                if i < n:
-                    res.append(make_r(s[i]))
+                next_c = s[i]
+                if next_c in [',', '>', ':']:
+                    # Thin space: \, or \:
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
+                    i += 1
+                elif next_c == ';':
+                    # Medium space: \;
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve">  </m:t></m:r>')
+                    i += 1
+                elif next_c == '!':
+                    # Negative space: \!
+                    i += 1
+                elif next_c in [' ', '\t']:
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
+                    i += 1
+                elif next_c in ['%', '_', '#', '&', '$', '{', '}']:
+                    res.append(make_r(next_c))
+                    i += 1
+                elif next_c == '\\':
+                    # \\ newline in math
+                    i += 1
+                else:
+                    res.append(make_r(next_c))
                     i += 1
                 continue
 
