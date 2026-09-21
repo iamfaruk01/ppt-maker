@@ -959,8 +959,8 @@ def generate(data, output_path):
 
         normal_lines = max(0, total_text_lines - total_tall_lines)
         para_gaps = max(0, num_non_empty_paras - 1)
-        q_text_h = normal_lines * line_h + total_tall_lines * tall_h + para_gaps * Inches(0.08) + Inches(0.12)
-        q_text_h = max(Inches(0.45), q_text_h)
+        q_text_h = normal_lines * line_h + total_tall_lines * tall_h + para_gaps * Inches(0.06) + Inches(0.04)
+        q_text_h = max(Inches(0.40), q_text_h)
 
         # Add Native Text Box for the question text
         tb = slide.shapes.add_textbox(ML, content_top, CW, q_text_h)
@@ -979,7 +979,7 @@ def generate(data, output_path):
                     if not line_s:
                         continue
                     p = tf.paragraphs[0] if first_p else tf.add_paragraph()
-                    p.space_after = Pt(6)
+                    p.space_after = Pt(4)
                     add_paragraph_runs(p, line_s, font_size=q_font_size, is_question_start=first_p)
                     first_p = False
             elif btype == 'display':
@@ -989,7 +989,7 @@ def generate(data, output_path):
 
         # 4. Render and place any Display Equations directly below question text
         if display_eqs:
-            cur_y += Inches(0.10)
+            cur_y += Inches(0.08)
             for deq in display_eqs:
                 buf, dw, dh = render_display_eq(deq, fontsize=26)
                 if buf:
@@ -997,13 +997,13 @@ def generate(data, output_path):
                     dh_in = Inches(dh)
                     dx = ML + Inches(0.25)
                     slide.shapes.add_picture(buf, dx, cur_y, dw_in, dh_in)
-                    cur_y += dh_in + Inches(0.12)
+                    cur_y += dh_in + Inches(0.08)
 
-        # 5. MCQ Options (Dynamically placed with guaranteed separation gap)
+        # 5. MCQ Options (Naturally and compactly placed directly below question)
         if is_mcq and options:
-            start_opt_y = max(Inches(2.2), cur_y + Inches(0.35))
+            start_opt_y = cur_y + Inches(0.16)
             cur_opt_y = start_opt_y
-            gap_y = Inches(0.14)
+            gap_y = Inches(0.12)
 
             for i in range(min(4, len(options))):
                 opt_str = str(options[i]).strip()
@@ -1021,7 +1021,7 @@ def generate(data, output_path):
                 if opt_w >= CW and opt_chars > 65:
                     opt_lines = max(1, (opt_chars + 50) // 55)
 
-                this_opt_h = Inches(0.40 * opt_lines + (0.14 if opt_has_tall else 0))
+                this_opt_h = Inches(0.36 * opt_lines + (0.12 if opt_has_tall else 0))
 
                 tb_opt = slide.shapes.add_textbox(ML, cur_opt_y, opt_w, this_opt_h)
                 tf_o = tb_opt.text_frame
