@@ -155,9 +155,17 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
             num_str, i = extract_braced_arg(i)
             while i < n and s[i].isspace(): i += 1
             den_str, i = extract_braced_arg(i)
-            num_omml = "".join(parse_math_tokens(num_str, color_hex, sz))
-            den_omml = "".join(parse_math_tokens(den_str, color_hex, sz))
-            res.append(f'<m:f><m:num>{num_omml}</m:num><m:den>{den_omml}</m:den></m:f>')
+            if den_str.strip():
+                # Normal fraction: numerator / denominator
+                num_omml = "".join(parse_math_tokens(num_str, color_hex, sz))
+                den_omml = "".join(parse_math_tokens(den_str, color_hex, sz))
+                res.append(f'<m:f><m:num>{num_omml}</m:num><m:den>{den_omml}</m:den></m:f>')
+            else:
+                # Malformed \frac with missing denominator — render numerator in parens
+                num_omml = "".join(parse_math_tokens(num_str, color_hex, sz))
+                res.append(make_r('('))
+                res.extend(parse_math_tokens(num_str, color_hex, sz))
+                res.append(make_r(')'))
             continue
 
         # \\sqrt[n]{x} or \\sqrt{x}
