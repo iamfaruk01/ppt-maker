@@ -276,8 +276,8 @@ function normalizeMathFractions(str) {
  */
 function wrapBareLatexCommands(str) {
   if (!str || !str.includes('\\')) return str;
-  // Regex to find bare LaTeX commands with braces outside $
-  const BARE_LATEX = /\\(?:frac\{[^}]+\}\{[^}]+\}|sqrt(?:\[[^\]]*\])?\{[^}]+\}|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|(?:vec|hat|bar|overline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check)\{[^}]+\})/g;
+  // Regex to find bare LaTeX commands outside $
+  const BARE_LATEX = /\\(?:frac\{[^}]+\}\{[^}]+\}|sqrt(?:\[[^\]]*\])?\{[^}]+\}|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?|(?:vec|hat|bar|overline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check)\{[^}]+\}|(?:sin|cos|tan|cot|sec|csc|log|ln|lg|lim|exp|arcsin|arccos|arctan)(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)*(?:\([^\)]+\))?(?:\s+[a-zA-Z0-9]+)?|[a-zA-Z]+(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)+|(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|propto|partial|nabla|degree|pm|mp|times|cdot|approx|neq|leq|geq|to|rightarrow|leftarrow))/g;
   // Split on existing $...$ segments so we don't double-wrap
   const parts = str.split(/(\$\$[\s\S]*?\$\$|\$[^$]+\$)/g);
   return parts.map((part, i) => {
@@ -289,10 +289,11 @@ function wrapBareLatexCommands(str) {
 function isMathExpression(str) {
   if (!str) return false;
   const s = String(str).trim();
-  if (s.includes('$') || s.includes('\\frac') || s.includes('\\sqrt')) return true;
+  if (s.includes('$') || s.includes('\\')) return true;
   if (/[a-zA-Z]\s*=\s*[a-zA-Z0-9\+\-\*\/]/.test(s)) return true;
   if (/\b[a-zA-Z0-9_]+\s*\/\s*[a-zA-Z0-9_]+\b/.test(s)) return true;
   if (/\^\{?[0-9\+\-a-zA-Z]+\}?/.test(s)) return true;
+  if (/\b(?:sin|cos|tan|log|ln|lim)\b/.test(s)) return true;
   return false;
 }
 
@@ -500,7 +501,7 @@ function formatOptionsHtml(q) {
   labels.forEach((lbl, i) => {
     let rawVal = q.options[i] ? q.options[i].trim() : '';
     if (!rawVal) return;
-    let optVal = normalizeMathFractions(rawVal);
+    let optVal = wrapBareLatexCommands(normalizeMathFractions(rawVal));
     if (!optVal.includes('$') && isMathExpression(optVal)) {
       optVal = `$${optVal}$`;
     }

@@ -88,11 +88,16 @@ def wrap_bare_latex(text):
 
     BARE_LATEX_PAT = re.compile(
         r'(?<!\$)'          # not already preceded by $
-        r'(\\(?:frac\{[^}]+\}\{[^}]+\}'   # \frac{A}{B}
+        r'(\\'
+        r'(?:frac\{[^}]+\}\{[^}]+\}'   # \frac{A}{B}
         r'|sqrt(?:\[[^\]]*\])?\{[^}]+\}'   # \sqrt{x} or \sqrt[n]{x}
         r'|sum(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \sum or \sum_{a}^{b}
         r'|int(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \int or \int_{a}^{b}
         r'|prod(?:_\{[^}]+\})?(?:\^\{[^}]+\})?'  # \prod
+        r'|(?:vec|hat|bar|overline|overrightarrow|dot|ddot|tilde|breve|acute|grave|check)\{[^}]+\}'  # accents
+        r'|(?:sin|cos|tan|cot|sec|csc|log|ln|lg|lim|exp|arcsin|arccos|arctan)(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)*(?:\([^\)]+\))?(?:\s+[a-zA-Z0-9]+)?'  # functions with sup/sub/arg
+        r'|[a-zA-Z]+(?:\^\{[^}]+\}|\^[0-9a-zA-Z\+\-]+|_\{[^}]+\}|_[0-9a-zA-Z]+)+'  # any cmd with sub/sup e.g. \theta_1, \pi^2
+        r'|(?:alpha|beta|gamma|delta|epsilon|varepsilon|zeta|eta|theta|vartheta|iota|kappa|lambda|mu|nu|xi|pi|varpi|rho|varrho|sigma|varsigma|tau|upsilon|phi|varphi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|infty|propto|partial|nabla|degree|pm|mp|times|cdot|approx|neq|leq|geq|to|rightarrow|leftarrow)'  # greek/symbols
         r'))'
         r'(?!\$)'           # not followed by $
     )
@@ -145,7 +150,66 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
     while i < n:
         c = s[i]
         if c.isspace():
+            # Emit a thin space run so function names stay separated from their arguments
+            # e.g. \log x renders as "log x" not "logx"
+            res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t xml:space="preserve"> </m:t></m:r>')
             i += 1
+            continue
+
+        # Subscripts and superscripts when ^ or _ appears after any atom (function, Greek, symbol, etc.)
+        if c in ['^', '_']:
+            has_sub = (c == '_')
+            has_sup = (c == '^')
+            sub_content = ""
+            sup_content = ""
+            i += 1
+            while i < n and s[i].isspace(): i += 1
+            arg, i = extract_braced_arg(i)
+            if has_sup:
+                sup_content = arg
+            else:
+                sub_content = arg
+
+            # Check if the other operator follows immediately (e.g. ^2_3 or _3^2)
+            saved_i = i
+            while i < n and s[i].isspace(): i += 1
+            if i < n and s[i] in ['^', '_']:
+                op2 = s[i]
+                i += 1
+                while i < n and s[i].isspace(): i += 1
+                arg2, i = extract_braced_arg(i)
+                if op2 == '^':
+                    has_sup = True
+                    sup_content = arg2
+                else:
+                    has_sub = True
+                    sub_content = arg2
+            else:
+                i = saved_i
+
+            # Pop any trailing space runs before getting the base
+            trailing_spaces = []
+            while res and 'xml:space="preserve"' in res[-1]:
+                trailing_spaces.append(res.pop())
+            base_omml = res.pop() if res else make_r("")
+
+            if has_sub and has_sup:
+                sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
+                sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
+                res.append(f'<m:sSubSup><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub><m:sup>{sup_omml}</m:sup></m:sSubSup>')
+            elif has_sup:
+                sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
+                res.append(f'<m:sSup><m:e>{base_omml}</m:e><m:sup>{sup_omml}</m:sup></m:sSup>')
+            elif has_sub:
+                sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
+                res.append(f'<m:sSub><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub></m:sSub>')
+            continue
+
+        # Top-level braced group: {x+y}
+        if c == '{':
+            arg_str, i = extract_braced_arg(i)
+            arg_omml = "".join(parse_math_tokens(arg_str, color_hex, sz))
+            res.append(arg_omml)
             continue
 
         # \\frac{num}{den}
@@ -274,7 +338,12 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                         'ldots': '…', 'cdots': '⋯', 'vdots': '⋮', 'ddots': '⋱',
                     }
                     res.append(make_r(sym_dict.get(cmd, cmd)))
-                elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'lim', 'exp']:
+                elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+                             'arcsin', 'arccos', 'arctan', 'arccot', 'arcsec', 'arccsc',
+                             'sinh', 'cosh', 'tanh', 'coth', 'sech', 'csch',
+                             'ln', 'log', 'lg', 'lim', 'liminf', 'limsup', 'exp',
+                             'det', 'gcd', 'deg', 'dim', 'hom', 'ker',
+                             'min', 'max', 'sup', 'inf', 'arg', 'Pr']:
                     res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{cmd}</m:t></m:r>')
                 elif cmd in ['left', 'right']:
                     pass
@@ -328,35 +397,47 @@ def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
                 has_sub = True
                 sub_content = arg
 
+        MATH_FUNCS = {'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'arcsin', 'arccos', 'arctan',
+                      'sinh', 'cosh', 'tanh', 'log', 'ln', 'lg', 'lim', 'exp', 'det', 'gcd', 'max', 'min'}
+        clean_run = curr_run.strip()
+        is_func = clean_run.lower() in MATH_FUNCS
+        is_paren_group = clean_run.startswith('(') and clean_run.endswith(')')
+
         if has_sub and has_sup:
-            if len(curr_run.strip()) > 1:
+            if is_func:
+                base_omml = f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{clean_run}</m:t></m:r>'
+            elif is_paren_group or len(clean_run) <= 1:
+                base_omml = make_r(curr_run)
+            else:
                 base_str = curr_run[:-1]
                 target_char = curr_run[-1]
                 res.append(make_r(base_str))
-            else:
-                target_char = curr_run
-            base_omml = make_r(target_char)
+                base_omml = make_r(target_char)
             sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
             sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
             res.append(f'<m:sSubSup><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub><m:sup>{sup_omml}</m:sup></m:sSubSup>')
         elif has_sup:
-            if len(curr_run.strip()) > 1:
+            if is_func:
+                base_omml = f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{clean_run}</m:t></m:r>'
+            elif is_paren_group or len(clean_run) <= 1:
+                base_omml = make_r(curr_run)
+            else:
                 base_str = curr_run[:-1]
                 target_char = curr_run[-1]
                 res.append(make_r(base_str))
-            else:
-                target_char = curr_run
-            base_omml = make_r(target_char)
+                base_omml = make_r(target_char)
             sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
             res.append(f'<m:sSup><m:e>{base_omml}</m:e><m:sup>{sup_omml}</m:sup></m:sSup>')
         elif has_sub:
-            if len(curr_run.strip()) > 1:
+            if is_func:
+                base_omml = f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{clean_run}</m:t></m:r>'
+            elif is_paren_group or len(clean_run) <= 1:
+                base_omml = make_r(curr_run)
+            else:
                 base_str = curr_run[:-1]
                 target_char = curr_run[-1]
                 res.append(make_r(base_str))
-            else:
-                target_char = curr_run
-            base_omml = make_r(target_char)
+                base_omml = make_r(target_char)
             sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
             res.append(f'<m:sSub><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub></m:sSub>')
         else:
