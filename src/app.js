@@ -25,8 +25,9 @@ CRITICAL RULES:
 2. Do NOT write any conversational text, notes, or introductions before or after the code block.
 3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{1}{2}, \\\\times, \\\\sin, \\\\int).
 4. If bilingual, write in a continuous line with English first followed by Assamese in parentheses: English text (Assamese text).
-5. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
-6. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+5. For all mathematical formulas, fractions, and divisions, ALWAYS use proper LaTeX format inside $...$ (e.g. $\\frac{m}{a}$, $\\frac{1}{2}$, $F = ma$). NEVER write raw slash divisions like (m/a) or m/a.
+6. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)").
+7. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
 
 // ── Sample Data ─────────────────────────────────────────────────────────────
 const SAMPLE_PHYSICS = {
@@ -255,6 +256,28 @@ function stripCitations(text) {
     .trim();
 }
 
+function normalizeMathFractions(str) {
+  if (!str) return '';
+  let s = String(str);
+  // Parenthesized fraction: (m/a) -> \frac{m}{a}
+  s = s.replace(/\(([a-zA-Z0-9_\+\-\*\^]+)\s*\/\s*([a-zA-Z0-9_\+\-\*\^]+)\)/g, '\\frac{$1}{$2}');
+  // Simple fraction: preceded by space, =, (, [, +, -
+  s = s.replace(/(?<=[=\s\+\-\(\[])([a-zA-Z0-9_]+)\s*\/\s*([a-zA-Z0-9_]+)(?=[\s\+\-\)\]\.,]|$)/g, '\\frac{$1}{$2}');
+  // Standalone fraction: "m/a"
+  s = s.replace(/^([a-zA-Z0-9_]+)\s*\/\s*([a-zA-Z0-9_]+)$/g, '\\frac{$1}{$2}');
+  return s;
+}
+
+function isMathExpression(str) {
+  if (!str) return false;
+  const s = String(str).trim();
+  if (s.includes('$') || s.includes('\\frac') || s.includes('\\sqrt')) return true;
+  if (/[a-zA-Z]\s*=\s*[a-zA-Z0-9\+\-\*\/]/.test(s)) return true;
+  if (/\b[a-zA-Z0-9_]+\s*\/\s*[a-zA-Z0-9_]+\b/.test(s)) return true;
+  if (/\^\{?[0-9\+\-a-zA-Z]+\}?/.test(s)) return true;
+  return false;
+}
+
 function parseAndLoad(rawText) {
   if (!rawText || !rawText.trim()) return false;
   const clean = rawText.trim()
@@ -297,11 +320,12 @@ function parseAndLoad(rawText) {
   questions = rawQuestions.map((q, idx) => {
     let opts = Array.isArray(q.options) ? q.options.map(o => stripCitations(o)) : [];
     opts = opts.map(o => o.replace(/^\(?[A-Da-d]\)?[\.\:\)]\s*/, ''));
+    opts = opts.map(o => normalizeMathFractions(o));
     const isMcq = Boolean(q.is_mcq || opts.some(o => o.trim()));
     while (opts.length < 4) opts.push('');
     return {
       id: idx + 1,
-      question: stripCitations(q.question || ''),
+      question: normalizeMathFractions(stripCitations(q.question || '')),
       is_mcq: isMcq,
       options: opts.slice(0, 4)
     };
@@ -424,7 +448,8 @@ function parseSegments(text) {
 
 function formatQuestionHtml(rawQuestion) {
   if (!rawQuestion) return '';
-  const paragraphs = rawQuestion.split(/\n\s*\n/);
+  const normalizedQ = normalizeMathFractions(rawQuestion);
+  const paragraphs = normalizedQ.split(/\n\s*\n/);
   let contentHtml = '';
 
   paragraphs.forEach((p) => {
@@ -455,8 +480,12 @@ function formatOptionsHtml(q) {
   let optsHtml = '';
   const labels = ['(a)', '(b)', '(c)', '(d)'];
   labels.forEach((lbl, i) => {
-    const optVal = q.options[i] ? q.options[i].trim() : '';
-    if (!optVal) return;
+    let rawVal = q.options[i] ? q.options[i].trim() : '';
+    if (!rawVal) return;
+    let optVal = normalizeMathFractions(rawVal);
+    if (!optVal.includes('$') && isMathExpression(optVal)) {
+      optVal = `$${optVal}$`;
+    }
     const segs = parseSegments(optVal);
     let optTextHtml = '';
     segs.forEach(([t, c]) => {

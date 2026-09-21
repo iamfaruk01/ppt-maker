@@ -61,12 +61,201 @@ GREEK = {
 SUPERSCRIPTS = str.maketrans('0123456789+-=()ni', '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱ')
 SUBSCRIPTS   = str.maketrans('0123456789+-=()aehijklmnoprstuvx', '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₕᵢⱼₖₗₘₙₒₚᵣₛₜᵤᵥₓ')
 
+def normalize_fractions(text):
+    """
+    Normalizes (m/a) or m/a into proper LaTeX \\frac{m}{a}.
+    """
+    if not text:
+        return ""
+    # Parenthesized fractions: (m/a) -> \frac{m}{a}
+    t = re.sub(r'\(([a-zA-Z0-9_\+\-\*\^]+)\s*/\s*([a-zA-Z0-9_\+\-\*\^]+)\)', r'\\frac{\1}{\2}', text)
+    # Simple fraction: preceded by space, =, (, [, +, -
+    t = re.sub(r'(?<=[=\s\+\-\(\[])([a-zA-Z0-9_]+)\s*/\s*([a-zA-Z0-9_]+)(?=[\s\+\-\)\]\.,]|$)', r'\\frac{\1}{\2}', t)
+    # Standalone fraction: "m/a"
+    t = re.sub(r'^([a-zA-Z0-9_]+)\s*/\s*([a-zA-Z0-9_]+)$', r'\\frac{\1}{\2}', t)
+    return t
+
+def parse_math_tokens(s, color_hex="63CAB7", sz=2000):
+    """
+    Converts LaTeX math expression into a list of DrawingML OMML XML elements.
+    Supports fractions with true horizontal division bars, superscripts,
+    subscripts, radicals, Greek letters, operators, and functions.
+    """
+    res = []
+    i = 0
+    n = len(s)
+
+    def make_r(text):
+        safe = str(text).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+        return f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:t>{safe}</m:t></m:r>'
+
+    def extract_braced_arg(start_idx):
+        if start_idx >= n:
+            return "", start_idx
+        if s[start_idx] == '{':
+            depth = 1
+            j = start_idx + 1
+            while j < n and depth > 0:
+                if s[j] == '{': depth += 1
+                elif s[j] == '}': depth -= 1
+                j += 1
+            return s[start_idx+1:j-1], j
+        else:
+            m = re.match(r'^[+\-]?[a-zA-Z0-9]+', s[start_idx:])
+            if m:
+                end = start_idx + len(m.group(0))
+                return m.group(0), end
+            return s[start_idx:start_idx+1], start_idx + 1
+
+    while i < n:
+        c = s[i]
+        if c.isspace():
+            i += 1
+            continue
+
+        # \\frac{num}{den}
+        if s.startswith(r'\frac', i):
+            i += 5
+            while i < n and s[i].isspace(): i += 1
+            num_str, i = extract_braced_arg(i)
+            while i < n and s[i].isspace(): i += 1
+            den_str, i = extract_braced_arg(i)
+            num_omml = "".join(parse_math_tokens(num_str, color_hex, sz))
+            den_omml = "".join(parse_math_tokens(den_str, color_hex, sz))
+            res.append(f'<m:f><m:num>{num_omml}</m:num><m:den>{den_omml}</m:den></m:f>')
+            continue
+
+        # \\sqrt[n]{x} or \\sqrt{x}
+        if s.startswith(r'\sqrt', i):
+            i += 5
+            while i < n and s[i].isspace(): i += 1
+            deg_str = ""
+            if i < n and s[i] == '[':
+                j = s.find(']', i)
+                if j != -1:
+                    deg_str = s[i+1:j]
+                    i = j + 1
+            while i < n and s[i].isspace(): i += 1
+            rad_str, i = extract_braced_arg(i)
+            rad_omml = "".join(parse_math_tokens(rad_str, color_hex, sz))
+            if deg_str:
+                deg_omml = "".join(parse_math_tokens(deg_str, color_hex, sz))
+                res.append(f'<m:rad><m:deg>{deg_omml}</m:deg><m:e>{rad_omml}</m:e></m:rad>')
+            else:
+                res.append(f'<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e>{rad_omml}</m:e></m:rad>')
+            continue
+
+        # Commands: Greek, symbols, functions
+        if c == '\\':
+            m = re.match(r'\\([a-zA-Z]+)', s[i:])
+            if m:
+                cmd = m.group(1)
+                i += len(m.group(0))
+                # Check Greek
+                greek_cmd = '\\' + cmd
+                if greek_cmd in GREEK:
+                    res.append(make_r(GREEK[greek_cmd]))
+                elif cmd in ['times', 'cdot', 'pm', 'mp', 'leq', 'geq', 'approx', 'neq', 'rightarrow', 'leftarrow', 'infty', 'div', 'partial', 'nabla', 'degree']:
+                    sym_dict = {
+                        'times': '×', 'cdot': '·', 'pm': '±', 'mp': '∓',
+                        'leq': '≤', 'geq': '≥', 'approx': '≈', 'neq': '≠',
+                        'rightarrow': '→', 'leftarrow': '←', 'infty': '∞',
+                        'div': '÷', 'partial': '∂', 'nabla': '∇', 'degree': '°'
+                    }
+                    res.append(make_r(sym_dict.get(cmd, cmd)))
+                elif cmd in ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'lim', 'exp']:
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{cmd}</m:t></m:r>')
+                elif cmd in ['left', 'right']:
+                    pass
+                elif cmd in ['mathrm', 'mathbf', 'text', 'mathit']:
+                    while i < n and s[i].isspace(): i += 1
+                    txt_arg, i = extract_braced_arg(i)
+                    res.append(f'<m:r><a:rPr sz="{sz}"><a:solidFill><a:srgbClr val="{color_hex}"/></a:solidFill></a:rPr><m:rPr><m:nor/></m:rPr><m:t>{txt_arg}</m:t></m:r>')
+                else:
+                    res.append(make_r(cmd))
+                continue
+            else:
+                i += 1
+                if i < n:
+                    res.append(make_r(s[i]))
+                    i += 1
+                continue
+
+        curr_run = c
+        i += 1
+        while i < n and (s[i].isalnum() or s[i] in '=+-*/(),.[] '):
+            if s[i] in ['^', '_', '\\']:
+                break
+            curr_run += s[i]
+            i += 1
+
+        has_sub = False
+        has_sup = False
+        sub_content = ""
+        sup_content = ""
+
+        while i < n and (s[i] in ['^', '_']):
+            op = s[i]
+            i += 1
+            while i < n and s[i].isspace(): i += 1
+            arg, i = extract_braced_arg(i)
+            if op == '^':
+                has_sup = True
+                sup_content = arg
+            else:
+                has_sub = True
+                sub_content = arg
+
+        if has_sub and has_sup:
+            if len(curr_run.strip()) > 1:
+                base_str = curr_run[:-1]
+                target_char = curr_run[-1]
+                res.append(make_r(base_str))
+            else:
+                target_char = curr_run
+            base_omml = make_r(target_char)
+            sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
+            sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
+            res.append(f'<m:sSubSup><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub><m:sup>{sup_omml}</m:sup></m:sSubSup>')
+        elif has_sup:
+            if len(curr_run.strip()) > 1:
+                base_str = curr_run[:-1]
+                target_char = curr_run[-1]
+                res.append(make_r(base_str))
+            else:
+                target_char = curr_run
+            base_omml = make_r(target_char)
+            sup_omml = "".join(parse_math_tokens(sup_content, color_hex, sz))
+            res.append(f'<m:sSup><m:e>{base_omml}</m:e><m:sup>{sup_omml}</m:sup></m:sSup>')
+        elif has_sub:
+            if len(curr_run.strip()) > 1:
+                base_str = curr_run[:-1]
+                target_char = curr_run[-1]
+                res.append(make_r(base_str))
+            else:
+                target_char = curr_run
+            base_omml = make_r(target_char)
+            sub_omml = "".join(parse_math_tokens(sub_content, color_hex, sz))
+            res.append(f'<m:sSub><m:e>{base_omml}</m:e><m:sub>{sub_omml}</m:sub></m:sSub>')
+        else:
+            res.append(make_r(curr_run))
+
+    return res
+
+def parse_latex_to_omml_xml(latex_str, color_hex="63CAB7", sz=2000):
+    """
+    Converts LaTeX to PowerPoint native OMML wrapped in DrawingML a14:m element.
+    """
+    s = latex_str.strip().strip('$')
+    s = normalize_fractions(s)
+    nodes = parse_math_tokens(s, color_hex, sz)
+    omml_body = "".join(nodes)
+    return f'<a14:m xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><m:oMath>{omml_body}</m:oMath></a14:m>'
+
 def latex_to_unicode(latex):
     """Converts inline LaTeX expressions into clean, readable Unicode math."""
     s = latex.strip()
     s = re.sub(r'\\(?:text|mathrm|mathbf|mathit)\{([^}]+)\}', r' \1 ', s)
-    s = s.replace(r'\frac{1}{2}', '½').replace(r'\frac{1}{4}', '¼').replace(r'\frac{3}{4}', '¾')
-    s = s.replace(r'\frac{1}{3}', '⅓').replace(r'\frac{2}{3}', '⅔')
     s = s.replace(r'\times', '×').replace(r'\cdot', '·').replace(r'\pm', '±').replace(r'\mp', '∓')
     s = s.replace(r'\leq', '≤').replace(r'\geq', '≥').replace(r'\approx', '≈').replace(r'\neq', '≠')
     s = s.replace(r'\rightarrow', '→').replace(r'\leftarrow', '←').replace(r'\infty', '∞')
@@ -102,12 +291,13 @@ def strip_citations(text):
 
 def calc_option_width(label, opt_text):
     """Calculates compact width for an MCQ option box so it never takes the whole slide."""
-    clean = latex_to_unicode(opt_text.replace('$', ''))
+    norm = normalize_fractions(opt_text)
+    clean = latex_to_unicode(norm.replace('$', ''))
     full_str = f"({label}) {clean}"
     char_len = len(full_str)
-    # Average Pt(20) character is ~0.155 in wide + 0.35 in padding
-    est_w = Inches(char_len * 0.155 + 0.35)
-    return min(max(Inches(1.2), est_w), CW)
+    # Average Pt(20) character is ~0.155 in wide + 0.45 in padding
+    est_w = Inches(char_len * 0.155 + 0.45)
+    return min(max(Inches(1.8), est_w), CW)
 
 def render_display_eq(latex, fontsize=26, dpi=200):
     """Render a display LaTeX equation with matplotlib on dark background."""
@@ -159,19 +349,33 @@ def set_run_font(r, font_name, size=None, bold=False, italic=False, color=None):
     rPr.append(ea)
 
 def add_paragraph_runs(p, text, font_size=None):
-    """Appends styled runs to paragraph p, handling Assamese, English, and inline $math$."""
+    """Appends styled runs to paragraph p, handling Assamese, English, and inline $math$ with OMML."""
     tokens = re.split(r'(\$[^$]+\$)', text)
+    sz_pt = 21
+    if font_size is not None:
+        try:
+            sz_pt = font_size.pt
+        except AttributeError:
+            sz_pt = font_size
+    sz_val = int(sz_pt * 100)
+
     for tok in tokens:
         if not tok: continue
-        r = p.add_run()
         if tok.startswith('$') and tok.endswith('$'):
             # Inline math
             math_expr = tok[1:-1].strip()
-            clean_math = latex_to_unicode(math_expr)
-            r.text = clean_math
-            set_run_font(r, 'Cambria Math', size=font_size or Pt(21), italic=True, color=ACCENT)
+            # Try native OMML with horizontal fraction bar
+            try:
+                omml_xml = parse_latex_to_omml_xml(math_expr, color_hex="63CAB7", sz=sz_val)
+                p._p.append(parse_xml(omml_xml))
+            except Exception:
+                r = p.add_run()
+                clean_math = latex_to_unicode(math_expr)
+                r.text = clean_math
+                set_run_font(r, 'Cambria Math', size=font_size or Pt(21), italic=True, color=ACCENT)
         else:
             # Normal text (Assamese and English)
+            r = p.add_run()
             has_as = is_assamese(tok)
             r.text = tok
             sz = font_size or Pt(22 if has_as else 21)
@@ -307,12 +511,23 @@ def generate(data, output_path):
                 r_lbl.text = f'({LABELS[i]}) '
                 set_run_font(r_lbl, 'Banikanta', size=Pt(20), bold=True, color=ACCENT)
 
-                # Option content (handle LaTeX or normal text)
-                if '$' in opt_str:
-                    add_paragraph_runs(p_o, opt_str, font_size=Pt(20))
+                # Set paragraph-level defRPr so OMML math inherits Pt(20) and ACCENT color
+                pPr = p_o._p.find('{http://schemas.openxmlformats.org/drawingml/2006/main}pPr')
+                if pPr is None:
+                    pPr = parse_xml('<a:pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:defRPr sz="2000"><a:solidFill><a:srgbClr val="63CAB7"/></a:solidFill></a:defRPr></a:pPr>')
+                    p_o._p.insert(0, pPr)
+
+                norm_opt = normalize_fractions(opt_str)
+                is_math = ('$' in norm_opt) or ('\\frac' in norm_opt) or ('\\sqrt' in norm_opt) or ('/' in norm_opt and re.search(r'[a-zA-Z0-9]/[a-zA-Z0-9]', norm_opt)) or re.search(r'^[a-zA-Z]\s*=\s*', norm_opt)
+
+                if '$' in norm_opt:
+                    add_paragraph_runs(p_o, norm_opt, font_size=Pt(20))
+                elif is_math and not is_assamese(norm_opt):
+                    # Mathematical formula without $ delimiters (e.g. "F = (m/a)" or "m/a")
+                    add_paragraph_runs(p_o, f'${norm_opt}$', font_size=Pt(20))
                 else:
                     c_r = p_o.add_run()
-                    c_r.text = opt_str
+                    c_r.text = norm_opt
                     set_run_font(c_r, 'Banikanta', size=Pt(20), color=WHITE)
 
         # 6. Slide number footer
