@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PPT Maker</title>
+  <link rel="stylesheet" href="src/styles.css">
+  <!-- MathJax Configuration -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+      },
+      startup: {
+        typeset: false
+      }
+    };
+  </script>
+  <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-brand">
+      <div class="brand-icon">P</div>
+      <div class="brand-title">PPT Maker</div>
+    </div>
+    <div class="header-actions">
+      <div class="sync-pill" id="btn-sync-pill" title="GitHub Auto-Sync status. Click to configure repo.">
+        <span class="sync-dot offline" id="sync-dot"></span>
+        <span id="sync-text">Checking sync...</span>
+      </div>
+      <button class="btn-icon" id="btn-settings" title="Settings & GitHub Sync">⚙</button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <main class="app-body">
+    <!-- Left: Editor Pane -->
+    <section class="editor-pane">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <input type="file" id="input-file" accept=".json" style="display: none;">
+        <button id="btn-copy-prompt" type="button" class="tool-btn tool-btn-purple" title="Copy AI prompt to extract questions from PDFs/Images">
+          <span>📋</span> Copy AI Prompt
+        </button>
+        <button id="btn-open-file" type="button" class="tool-btn tool-btn-teal" title="Open a saved JSON question file">
+          <span>📁</span> Open JSON
+        </button>
+        <button id="btn-paste-json" type="button" class="tool-btn tool-btn-gray" title="Paste JSON text generated from AI">
+          <span>📥</span> Paste JSON
+        </button>
+        <button id="btn-save-file" type="button" class="tool-btn tool-btn-gray" title="Save current questions to JSON">
+          <span>💾</span> Save JSON
+        </button>
+        <div style="display:flex; align-items:center; gap:6px; margin-left:auto;">
+          <select id="select-example" class="select-example">
+            <option value="all">All Variations (Phy, Chem, Math)</option>
+            <option value="physics">Physics (Mechanics & Magnetism)</option>
+            <option value="chemistry">Chemistry (Gas Law & pH)</option>
+            <option value="maths">Mathematics (Calculus & Algebra)</option>
+          </select>
+          <button id="btn-load-example" type="button" class="tool-btn tool-btn-teal">Load</button>
+        </div>
+      </div>
+
+      <!-- Metadata: Subject & Exam -->
+      <div class="meta-row">
+        <div class="meta-input-group">
+          <label for="input-subject">Subject</label>
+          <input type="text" id="input-subject" placeholder="e.g. Physics" value="Physics">
+        </div>
+        <div class="meta-input-group">
+          <label for="input-exam-label">Exam / Class</label>
+          <input type="text" id="input-exam-label" placeholder="e.g. Class XII · 2025" value="Class XII · 2025">
+        </div>
+      </div>
+
+      <!-- Question List -->
+      <div class="question-scroll-list" id="question-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Bottom Action Bar -->
+      <div class="bottom-action-bar">
+        <button id="btn-add-q" class="btn-add-q">＋ Add Question</button>
+        <button id="btn-generate" class="btn-generate">
+          <span>⚡</span> Generate PPT
+        </button>
+      </div>
+    </section>
+
+    <!-- Right: Preview Pane -->
+    <section class="preview-pane">
+      <div class="preview-header">
+        <span class="preview-title" id="preview-title">SLIDE PREVIEW (Q1)</span>
+        <span style="font-size: 0.75rem; color: #778;">16:9 HD Canvas</span>
+      </div>
+      <div class="slide-canvas" id="slide-canvas">
+        <div class="slide-question-content" id="slide-q-content">
+          Loading question preview...
+        </div>
+        <div class="slide-options-container" id="slide-opts-container"></div>
+        <div class="slide-footer-num" id="slide-footer-num">1</div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Paste JSON -->
+  <div class="modal-backdrop" id="modal-paste" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Paste JSON from AI</h3>
+        <button class="modal-close" id="btn-close-paste">✕</button>
+      </div>
+      <textarea id="textarea-paste" class="modal-textarea" rows="14" placeholder='{\n  "subject": "Physics",\n  "exam_label": "Class XII · 2025",\n  "questions": [\n    {\n      "question": "...",\n      "is_mcq": true,\n      "options": ["...", "...", "...", "..."]\n    }\n  ]\n}'></textarea>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-cancel-paste">Cancel</button>
+        <button class="btn-primary" id="btn-apply-paste">Load Questions</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Settings & GitHub Sync -->
+  <div class="modal-backdrop" id="modal-settings" style="display: none;">
+    <div class="modal-card" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3>Settings &amp; Live Sync</h3>
+        <button class="modal-close" id="btn-close-settings">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px; margin-top: 6px;">
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 0.8rem; color: #aab;">GitHub Repository (Username/Repo or URL)</label>
+          <input type="text" id="input-github-repo" class="opt-input" placeholder="e.g. iamfaruk01/ppt-maker" style="padding: 8px 10px;">
+          <p style="font-size: 0.74rem; color: #778;">When configured, any fixes pushed to GitHub will instantly update the PowerPoint generator in ~0.5s without reinstalling.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          <label style="font-size: 0.8rem; color: #aab;">GitHub Personal Access Token (Only if repo is Private)</label>
+          <input type="password" id="input-github-token" class="opt-input" placeholder="ghp_... (leave empty if repository is public)" style="padding: 8px 10px;">
+          <p style="font-size: 0.74rem; color: #778;">If the repository is public, no token is needed. If private, a fine-grained or classic read-only token allows script downloading.</p>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div>
+            <div style="font-size: 0.82rem; color: #fff; font-weight: 500;">Auto-sync on Launch</div>
+            <div style="font-size: 0.74rem; color: #889;">Silently fetches the newest generator script</div>
+          </div>
+          <input type="checkbox" id="checkbox-auto-sync" checked style="width: 16px; height: 16px; accent-color: #63cab7; cursor: pointer;">
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div>
+            <div style="font-size: 0.82rem; color: #fff; font-weight: 500;">Banikanta Assamese Font</div>
+            <div style="font-size: 0.74rem; color: #889;">Ensure font is registered in Windows</div>
+          </div>
+          <button id="btn-install-font" type="button" class="btn-secondary" style="font-size: 0.76rem; padding: 4px 10px;">Re-install Font</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-check-sync-now">Check Sync Now</button>
+        <button class="btn-primary" id="btn-save-settings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="src/app.js"></script>
+</body>
+</html>

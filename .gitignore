@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Build and Distributable Executables
+dist/
+build/
+backend/python_runner.exe
+*.spec
+
+# Python Cache
+__pycache__/
+backend/__pycache__/
+*.pyc
+
+# Logs & OS metadata
+*.log
+.DS_Store
+Thumbs.db

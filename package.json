@@ -1,0 +1,65 @@
+{
+  "name": "ppt-maker",
+  "productName": "PPT Maker",
+  "version": "1.0.0",
+  "description": "Bilingual Math & Science Question to PowerPoint Generator",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:runner": "python -m PyInstaller --noconfirm --clean --onefile --name python_runner --distpath backend backend/runner.py",
+    "dist:portable": "electron-builder --win portable",
+    "dist:setup": "electron-builder --win nsis",
+    "dist": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.pptmaker.app",
+    "productName": "PPT Maker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "config.json",
+      "src/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "python_runner.exe",
+          "math_to_ppt.py",
+          "Banikanta.ttf",
+          "install_font.bat"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "keywords": [
+    "powerpoint",
+    "math",
+    "assamese",
+    "bilingual",
+    "latex"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^42.2.0",
+    "electron-builder": "^26.15.3"
+  }
+}
