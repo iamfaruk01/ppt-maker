@@ -97,7 +97,7 @@ function renderList() {
     card.innerHTML = `
       <div class="q-card-header">
         <span class="q-badge">Question ${idx + 1}</span>
-        ${questions.length > 1 ? `<button class="btn-remove-q" data-idx="${idx}" title="Remove question">✕</button>` : ''}
+        ${questions.length > 1 ? `<button class="btn-remove-q" data-idx="${idx}" title="Remove question"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button>` : ''}
       </div>
 
       <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -445,7 +445,7 @@ btnCopyPrompt?.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(AI_CONVERSION_PROMPT);
     const origHtml = btnCopyPrompt.innerHTML;
-    btnCopyPrompt.innerHTML = '<span>✓</span> Copied to Clipboard!';
+    btnCopyPrompt.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied to Clipboard!</span>';
     setTimeout(() => { btnCopyPrompt.innerHTML = origHtml; }, 2200);
   } catch (err) {
     alert('Could not copy to clipboard: ' + err.message);
@@ -628,7 +628,7 @@ btnGenerate?.addEventListener('click', async () => {
 
   btnGenerate.disabled = true;
   const origBtnText = btnGenerate.innerHTML;
-  btnGenerate.innerHTML = '<span>⏳</span> Generating PowerPoint...';
+  btnGenerate.innerHTML = '<svg class="spinner-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Generating PowerPoint...</span>';
 
   const payload = {
     subject: inputSubject?.value.trim() || 'Physics',
@@ -644,7 +644,7 @@ btnGenerate?.addEventListener('click', async () => {
   try {
     const result = await window.electronAPI.mathPptGenerate(payload);
     if (result && result.success) {
-      btnGenerate.innerHTML = '<span>✓</span> Generated Successfully!';
+      btnGenerate.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Generated Successfully!</span>';
       // Reveal in file explorer
       await window.electronAPI.showInFolder(result.output);
       setTimeout(() => {
@@ -700,7 +700,7 @@ function updateSyncPill(info) {
   if (!syncDot || !syncText) return;
   syncDot.className = 'sync-dot ' + (info.status || 'offline');
   if (info.status === 'synced') {
-    syncText.textContent = 'Live Up to Date ✓';
+    syncText.textContent = 'Live Up to Date';
     btnSyncPill.title = `Synced from GitHub (${info.date ? new Date(info.date).toLocaleTimeString() : 'latest'}). Click to configure.`;
   } else if (info.status === 'syncing') {
     syncText.textContent = 'Syncing...';

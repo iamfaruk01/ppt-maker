@@ -108,7 +108,7 @@ async function syncLatestScript() {
           saveConfig(config);
           const payload = {
             status: 'synced',
-            message: 'Live Up to Date ✓',
+            message: 'Live Up to Date',
             date: config.last_synced,
             sourceUrl: req.url
           };

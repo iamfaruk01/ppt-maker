@@ -609,3 +609,24 @@ body {
   border-radius: 6px;
   cursor: pointer;
 }
+
+/* ── SVG Icons & Animations ──────────────────────────────────────────────── */
+.btn-icon svg,
+.tool-btn svg,
+.btn-generate svg,
+.btn-add-q svg,
+.modal-close svg,
+.btn-remove-q svg {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.spinner-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
