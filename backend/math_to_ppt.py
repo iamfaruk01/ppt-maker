@@ -822,13 +822,13 @@ def set_run_font(r, font_name, size=None, bold=False, italic=False, color=None):
     rPr.append(cs)
     rPr.append(ea)
 
-def add_paragraph_runs(p, text, font_size=None, is_question_start=False):
-    """Appends styled runs to paragraph p, handling Assamese, English, and inline $math$ with OMML."""
+def add_paragraph_runs(p, text, font_size=None, is_question_start=False, is_note_title=False):
+    """Appends styled runs to paragraph p, handling Assamese, English, inline $math$, and note titles."""
     # Wrap bare LaTeX commands (e.g. \frac{m}{s} outside $) into $...$
     text = wrap_bare_latex(text)
     tokens = re.split(r'(\$[^$]+\$)', text)
-    sz_pt = 21
-    if font_size is not None:
+    sz_pt = 22 if is_note_title else 21
+    if font_size is not None and not is_note_title:
         try:
             sz_pt = font_size.pt
         except AttributeError:
@@ -856,11 +856,12 @@ def add_paragraph_runs(p, text, font_size=None, is_question_start=False):
         else:
             # Normal text (Assamese and English)
             has_as = is_assamese(tok)
-            sz = font_size or Pt(22 if has_as else 21)
-            col = WHITE if has_as else LGRAY
+            sz = Pt(22) if is_note_title else (font_size or Pt(22 if has_as else 21))
+            col = ACCENT if is_note_title else (WHITE if has_as else LGRAY)
+            bold_val = True if is_note_title else False
 
             # Highlight question prefix like "Q1.", "Q2.", etc. in bold ACCENT
-            if is_question_start and first_text:
+            if is_question_start and first_text and not is_note_title:
                 m_q = re.match(r'^(Q\d+\.)\s*(.*)', tok)
                 if m_q:
                     r_q = p.add_run()
@@ -877,7 +878,7 @@ def add_paragraph_runs(p, text, font_size=None, is_question_start=False):
             first_text = False
             r = p.add_run()
             r.text = tok
-            set_run_font(r, 'Banikanta', size=sz, color=col)
+            set_run_font(r, 'Banikanta', size=sz, bold=bold_val, color=col)
 
 def generate(data, output_path):
     prs = Presentation()
@@ -914,15 +915,24 @@ def generate(data, output_path):
         options  = [strip_citations(o) for o in raw_options]
         is_mcq   = q.get('is_mcq', len(options) > 0)
 
-        # Determine question number and prefix (e.g. "Q1.", "Q2.", "Q3.")
+        # Determine whether this slide is a Note / Theory card or a Question
+        is_note = (q.get('type') == 'note') or (q.get('is_note') is True)
+        if not is_note and not is_mcq:
+            # Auto-detect if content is a note vs a subjective question
+            is_question_like = ('?' in raw_text) or bool(re.search(r'^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])', raw_text, re.IGNORECASE)) or bool(re.search(r'^\s*(?:what|which|calculate|find|state|define|explain|derive|prove|how|why)\b', raw_text, re.IGNORECASE))
+            if not is_question_like:
+                is_note = True
+
         q_num = q.get('id')
         if q_num is None or str(q_num).strip() == '':
             q_num = idx + 1
-        q_prefix = f"Q{q_num}."
 
-        # Clean existing prefix if present to prevent double numbering ("Q1. Q1." or "Q1. 1.")
-        clean_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*|\d+[\.:\-\)])\s*', '', raw_text, flags=re.IGNORECASE).strip()
-        raw_text = f"{q_prefix} {clean_text}"
+        if not is_note:
+            q_prefix = f"Q{q_num}."
+            clean_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*|\d+[\.:\-\)])\s*', '', raw_text, flags=re.IGNORECASE).strip()
+            raw_text = f"{q_prefix} {clean_text}"
+        else:
+            raw_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*)\s*', '', raw_text, flags=re.IGNORECASE).strip()
 
         # Determine ideal proportional font size based on total question length
         total_chars = len(raw_text)
@@ -954,9 +964,16 @@ def generate(data, output_path):
         for l_idx, line in enumerate(q_lines):
             p = tf.paragraphs[0] if l_idx == 0 else tf.add_paragraph()
             is_last_q_line = (l_idx == len(q_lines) - 1)
-            # Natural, compact paragraph break between question and MCQ options: 14pt (0.19 in)
-            p.space_after = Pt(14) if is_last_q_line else Pt(5)
-            add_paragraph_runs(p, line, font_size=q_font_size, is_question_start=(l_idx == 0))
+            is_title_line = (is_note and l_idx == 0)
+
+            if is_title_line:
+                # Note topic heading in bold accent teal with comfortable paragraph spacing
+                p.space_after = Pt(12)
+                add_paragraph_runs(p, line, font_size=Pt(22), is_note_title=True)
+            else:
+                # Natural, compact paragraph break between question and MCQ options: 14pt (0.19 in)
+                p.space_after = Pt(14) if is_last_q_line else Pt(5)
+                add_paragraph_runs(p, line, font_size=q_font_size, is_question_start=(l_idx == 0 and not is_note))
 
         # 4. MCQ Options (Seamlessly following question with natural paragraph spacing)
         if is_mcq and options:

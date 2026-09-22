@@ -1,13 +1,22 @@
 // ── AI Conversion Prompt ───────────────────────────────────────────────────
-const AI_CONVERSION_PROMPT = `You are an expert question paper extractor and LaTeX mathematician.
-Extract all questions from the provided PDF, image, or text and output ONLY a valid JSON object in the following format:
+const AI_CONVERSION_PROMPT = `You are an expert educational content extractor, handwriting transcriber, and LaTeX mathematician.
+Extract all content (handwritten notes, lecture notes, textbook pages, question papers, or study materials) from the provided PDF, image, or text and output ONLY a valid JSON object in the following format:
 
 {
-  "subject": "<Subject Name, e.g. Physics / Mathematics / Chemistry>",
-  "exam_label": "<Exam / Class / Year, e.g. Class XII · Final Examination 2026>",
+  "subject": "<Subject Name, e.g. Physics / Mathematics / Chemistry / Biology>",
+  "exam_label": "<Chapter / Topic / Exam Label, e.g. Class 12 Physics · Current Electricity Notes>",
   "questions": [
     {
       "id": 1,
+      "type": "note",
+      "question": "<Topic Title or Heading>:\\n<Clear explanation, bullet points, conditions, and formulas. Use $...$ for inline math and $$...$$ for display equations>",
+      "is_mcq": false,
+      "options": [],
+      "answer": ""
+    },
+    {
+      "id": 2,
+      "type": "question",
       "question": "<Full question text. If bilingual, write English followed by (Assamese) in a continuous line. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": true,
       "options": [
@@ -24,13 +33,23 @@ Extract all questions from the provided PDF, image, or text and output ONLY a va
 CRITICAL RULES:
 1. Output your ENTIRE response inside a SINGLE markdown code block starting with \`\`\`json and ending with \`\`\`.
 2. Do NOT write any conversational text, explanations, or notes before or after the code block.
-3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\begin{bmatrix}).
-4. If bilingual, write in a continuous line with English first followed by Assamese in parentheses: English text (Assamese text).
-5. For ALL mathematical expressions, formulas, symbols, units, and equations, ALWAYS wrap them in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$). Always keep full equations together inside a single pair of $...$ (e.g. "$\\\\mu_s = 0.5$", "$m = 2\\\\,\\\\mathrm{kg}$") so they never break apart across lines.
-6. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)" prefixes). If an option is mathematical, wrap it in $...$ (e.g. "$25$ J", "$\\\\frac{a}{b}$").
-7. Full standard LaTeX is supported: fractions (\\\\frac), roots (\\\\sqrt, \\\\sqrt[n]), vectors (\\\\vec), subscripts/superscripts (x_1^2), matrices (\\\\begin{bmatrix}), cases (\\\\begin{cases}), limits (\\\\lim), summations (\\\\sum), integrals (\\\\int), and Greek letters (\\\\alpha, \\\\theta).
-8. Always include the correct option letter in "answer" ("a", "b", "c", or "d").
-9. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+3. HANDWRITTEN NOTES & THEORY:
+   - Carefully decipher handwritten text, cursive, mathematical notations, and shorthand.
+   - Expand common abbreviations (e.g. "w.r.t." -> "with respect to", "const." -> "constant", "temp." -> "temperature", "eqn" -> "equation") for professional presentation clarity.
+   - Divide notes into logical slides: ONE core concept, law, definition, formula card, or derivation per slide (do not cram multiple unrelated topics onto a single slide).
+   - For notes and theoretical topics, set "type": "note", "is_mcq": false, "options": [], and "answer": "". Start the "question" field with a clear topic heading followed by ":" or a newline.
+4. QUESTION PAPERS & MCQs:
+   - For questions and practice exercises, set "type": "question".
+   - If multiple-choice, set "is_mcq": true, provide clean values in "options" (never include "(A)", "A.", or "(B)" prefixes), and include the correct option in "answer" ("a", "b", "c", or "d").
+   - If non-MCQ / subjective question, set "is_mcq": false, "options": [], and "answer": "".
+5. MATHEMATICS & FORMULAS (LaTeX):
+   - Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\oint, \\\\begin{bmatrix}).
+   - ALWAYS wrap all mathematical expressions, formulas, symbols, units, and equations in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$).
+   - Keep complete equations together inside a single pair of $...$ (e.g. "$\\\\mu_s = 0.5$", "$m = 2\\\\,\\\\mathrm{kg}$") so they never break apart across lines.
+   - Full standard LaTeX is supported: fractions (\\\\frac), radicals (\\\\sqrt), vectors (\\\\vec), subscripts/superscripts (x_1^2), matrices (\\\\begin{bmatrix}), cases (\\\\begin{cases}), limits (\\\\lim), integrals (\\\\int), summations (\\\\sum), and Greek letters (\\\\alpha, \\\\theta).
+6. BILINGUAL CONTENT:
+   - If the content is bilingual (e.g. English + Assamese/Hindi), format in a continuous line with English first followed by native script in parentheses: English text (Assamese text).
+7. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
 
 
 // ── Sample Data ─────────────────────────────────────────────────────────────
@@ -469,11 +488,12 @@ function parseSegments(text) {
   return segs;
 }
 
-function formatQuestionHtml(rawQuestion) {
+function formatQuestionHtml(rawQuestion, isNote = false) {
   if (!rawQuestion) return '';
   const normalizedQ = wrapBareLatexCommands(normalizeMathFractions(rawQuestion));
   const paragraphs = normalizedQ.split(/\n\s*\n/);
   let contentHtml = '';
+  let lineIdx = 0;
 
   paragraphs.forEach((p) => {
     const lines = p.split('\n');
@@ -489,7 +509,13 @@ function formatQuestionHtml(rawQuestion) {
           lineHtml += `<div class="slide-math-display">\\[${escHtml(content)}\\]</div>`;
         }
       });
-      contentHtml += `<div>${lineHtml || '&nbsp;'}</div>`;
+      const isTitleLine = (isNote && lineIdx === 0);
+      lineIdx++;
+      if (isTitleLine) {
+        contentHtml += `<div style="color: var(--accent-teal, #63CAB7); font-weight: 700; font-size: 1.18rem; margin-bottom: 10px;">${lineHtml || '&nbsp;'}</div>`;
+      } else {
+        contentHtml += `<div>${lineHtml || '&nbsp;'}</div>`;
+      }
     });
     contentHtml += '<div style="height: 6px;"></div>';
   });
@@ -535,13 +561,14 @@ function renderSlide(idx) {
   currentSlideIdx = idx;
 
   const q = questions[idx];
-  const qHtml = formatQuestionHtml(q.question);
+  const isNote = (q.type === 'note') || (q.is_note === true) || (!q.is_mcq && (!q.options || q.options.length === 0) && !/\?|^(?:what|which|calculate|find|state|define|explain|derive|prove|how|why)\b/i.test((q.question || '').trim()));
+  const qHtml = formatQuestionHtml(q.question, isNote);
   const optsHtml = formatOptionsHtml(q);
 
   // Step 3 Carousel Slide
   if (slideCanvas) {
     if (slideExam) slideExam.textContent = metaInfo.exam_label || '';
-    if (slideQHeading) slideQHeading.textContent = `Question ${idx + 1}:`;
+    if (slideQHeading) slideQHeading.textContent = isNote ? `Note / Concept ${idx + 1}:` : `Question ${idx + 1}:`;
     if (slideQContent) slideQContent.innerHTML = qHtml;
     if (slideOptsCont) slideOptsCont.innerHTML = optsHtml;
     if (slideFooterSub) slideFooterSub.textContent = metaInfo.subject || 'Physics';
@@ -555,7 +582,7 @@ function renderSlide(idx) {
   // Full Preview Slide
   if (fullSlideCanvas) {
     if (fullSlideExam) fullSlideExam.textContent = metaInfo.exam_label || '';
-    if (fullSlideQHeading) fullSlideQHeading.textContent = `Question ${idx + 1}:`;
+    if (fullSlideQHeading) fullSlideQHeading.textContent = isNote ? `Note / Concept ${idx + 1}:` : `Question ${idx + 1}:`;
     if (fullSlideQContent) fullSlideQContent.innerHTML = qHtml;
     if (fullSlideOptsCont) fullSlideOptsCont.innerHTML = optsHtml;
     if (fullSlideFooterSub) fullSlideFooterSub.textContent = metaInfo.subject || 'Physics';
