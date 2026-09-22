@@ -19,5 +19,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   
   // Font auto-install
-  installFont: () => ipcRenderer.invoke('font:install')
+  installFont: () => ipcRenderer.invoke('font:install'),
+
+  // Desktop App Auto-Updater (electron-updater)
+  checkForAppUpdates: () => ipcRenderer.invoke('updater:check'),
+  restartAndInstallUpdate: () => ipcRenderer.invoke('updater:restart'),
+  onUpdaterStatus: (callback) => {
+    ipcRenderer.on('updater:status', (event, data) => callback(data));
+  }
 });

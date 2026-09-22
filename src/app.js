@@ -1016,6 +1016,66 @@ btnInstallFont?.addEventListener('click', async () => {
   }
 });
 
+// ── Desktop App Auto-Updater Controller ─────────────────────────────────────
+const updateBanner        = document.getElementById('update-banner');
+const updateBannerText    = document.getElementById('update-banner-text');
+const btnRestartApp       = document.getElementById('btn-restart-app');
+const appUpdateStatus     = document.getElementById('app-update-status');
+const btnCheckAppUpdate   = document.getElementById('btn-check-app-update');
+
+btnRestartApp?.addEventListener('click', () => {
+  window.electronAPI?.restartAndInstallUpdate();
+});
+
+btnCheckAppUpdate?.addEventListener('click', async () => {
+  btnCheckAppUpdate.disabled = true;
+  btnCheckAppUpdate.textContent = 'Checking…';
+  try {
+    const res = await window.electronAPI?.checkForAppUpdates();
+    if (res?.status === 'dev') {
+      alert(res.message || 'Auto-updates are only active in packaged app builds.');
+    } else if (res?.status === 'error') {
+      alert('Update check error: ' + (res.message || 'Unknown error'));
+    }
+  } catch (err) {
+    alert('Update check error: ' + err.message);
+  } finally {
+    btnCheckAppUpdate.disabled = false;
+    btnCheckAppUpdate.textContent = 'Check for App Updates';
+  }
+});
+
+if (window.electronAPI?.onUpdaterStatus) {
+  window.electronAPI.onUpdaterStatus((info) => {
+    if (!info) return;
+
+    if (info.status === 'checking') {
+      if (appUpdateStatus) appUpdateStatus.textContent = 'Checking GitHub Releases for updates…';
+    } else if (info.status === 'available') {
+      if (appUpdateStatus) appUpdateStatus.textContent = `Update v${info.version || ''} found! Downloading in background…`;
+      if (updateBanner && updateBannerText) {
+        updateBannerText.textContent = `Downloading PPT Maker v${info.version || ''} in background…`;
+        if (btnRestartApp) btnRestartApp.style.display = 'none';
+        updateBanner.style.display = 'flex';
+      }
+    } else if (info.status === 'downloading') {
+      if (appUpdateStatus) appUpdateStatus.textContent = `Downloading update: ${info.percent || 0}%`;
+      if (updateBannerText) updateBannerText.textContent = `Downloading PPT Maker update: ${info.percent || 0}%`;
+    } else if (info.status === 'downloaded') {
+      if (appUpdateStatus) appUpdateStatus.textContent = `Update v${info.version || ''} downloaded! Ready to install.`;
+      if (updateBanner && updateBannerText) {
+        updateBannerText.textContent = `🎉 PPT Maker v${info.version || ''} is ready! Restart to apply.`;
+        if (btnRestartApp) btnRestartApp.style.display = 'inline-block';
+        updateBanner.style.display = 'flex';
+      }
+    } else if (info.status === 'not-available') {
+      if (appUpdateStatus) appUpdateStatus.textContent = 'PPT Maker is up to date (latest release).';
+    } else if (info.status === 'error') {
+      if (appUpdateStatus) appUpdateStatus.textContent = info.message || 'Update check failed.';
+    }
+  });
+}
+
 // ── Startup ──────────────────────────────────────────────────────────────────
 initTheme();
 initConfig();

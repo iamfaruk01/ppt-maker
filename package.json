@@ -9,11 +9,19 @@
     "build:runner": "python -m PyInstaller --noconfirm --clean --onefile --name python_runner --distpath backend backend/runner.py",
     "dist:portable": "electron-builder --win portable",
     "dist:setup": "electron-builder --win nsis",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "dist:publish": "electron-builder --win nsis --publish always"
   },
   "build": {
     "appId": "com.pptmaker.app",
     "productName": "PPT Maker",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "iamfaruk01",
+        "repo": "ppt-maker"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
@@ -64,5 +72,8 @@
   "devDependencies": {
     "electron": "^42.2.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }

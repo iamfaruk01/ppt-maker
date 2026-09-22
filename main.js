@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const path = require('path');
 const fs = require('fs');
 const { spawn, exec } = require('child_process');
@@ -195,6 +196,13 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     ensureBanikantaFont();
     syncLatestScript();
+    if (app.isPackaged) {
+      setTimeout(() => {
+        autoUpdater.checkForUpdates().catch((err) => {
+          console.log('Background update check:', err.message);
+        });
+      }, 5000);
+    }
   });
 }
 
@@ -302,4 +310,65 @@ ipcMain.handle('sync:check', () => syncLatestScript());
 ipcMain.handle('font:install', () => {
   ensureBanikantaFont();
   return true;
+});
+
+// ── Desktop App Auto-Updater (electron-updater) ──────────────────────────────
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function emitUpdaterStatus(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updater:status', payload);
+  }
+}
+
+autoUpdater.on('checking-for-update', () => {
+  emitUpdaterStatus({ status: 'checking', message: 'Checking GitHub for updates…' });
+});
+
+autoUpdater.on('update-available', (info) => {
+  emitUpdaterStatus({ status: 'available', version: info.version, message: `Update v${info.version} available. Downloading…` });
+});
+
+autoUpdater.on('update-not-available', () => {
+  emitUpdaterStatus({ status: 'not-available', message: 'App is up to date.' });
+});
+
+autoUpdater.on('download-progress', (progressObj) => {
+  emitUpdaterStatus({
+    status: 'downloading',
+    percent: Math.floor(progressObj.percent),
+    message: `Downloading update: ${Math.floor(progressObj.percent)}%`
+  });
+});
+
+autoUpdater.on('update-downloaded', (info) => {
+  emitUpdaterStatus({
+    status: 'downloaded',
+    version: info.version,
+    message: `Update v${info.version} downloaded! Restart to apply.`
+  });
+});
+
+autoUpdater.on('error', (err) => {
+  emitUpdaterStatus({
+    status: 'error',
+    message: err?.message || 'Update check failed.'
+  });
+});
+
+ipcMain.handle('updater:check', async () => {
+  if (!app.isPackaged) {
+    return { status: 'dev', message: 'Auto-updates are active in packaged app builds.' };
+  }
+  try {
+    const res = await autoUpdater.checkForUpdates();
+    return { status: 'checking', version: res?.updateInfo?.version };
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
+ipcMain.handle('updater:restart', () => {
+  autoUpdater.quitAndInstall();
 });

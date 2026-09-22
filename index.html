@@ -77,6 +77,15 @@
     </div>
   </header>
 
+  <!-- Auto-Update Notification Banner -->
+  <div id="update-banner" style="display: none; background: #064e3b; color: #ecfdf5; padding: 10px 24px; font-size: 0.84rem; align-items: center; justify-content: space-between; border-bottom: 1px solid #059669; z-index: 100;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="font-size: 1.1rem;">🚀</span>
+      <span id="update-banner-text">A new version of PPT Maker is available!</span>
+    </div>
+    <button id="btn-restart-app" type="button" style="background: #10b981; color: #022c22; border: none; font-weight: 700; font-size: 0.78rem; padding: 6px 14px; border-radius: 6px; cursor: pointer;">Restart &amp; Update</button>
+  </div>
+
   <!-- Main Container: Wizard View -->
   <main class="main-container" id="view-wizard">
     <!-- Hero Section -->
@@ -370,6 +379,13 @@
             <div style="font-size: 0.74rem; color: var(--text-muted);">Ensures font is registered in Windows</div>
           </div>
           <button id="btn-install-font" type="button" class="btn-secondary-action" style="font-size: 0.76rem; padding: 5px 10px;">Re-install Font</button>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg-inner); border-radius: 8px; border: 1px solid var(--border-color);">
+          <div>
+            <div style="font-size: 0.84rem; color: var(--text-main); font-weight: 600;">Desktop App Auto-Updates</div>
+            <div style="font-size: 0.74rem; color: var(--text-muted);" id="app-update-status">Version 1.0.0 · Auto-updates via GitHub Releases</div>
+          </div>
+          <button id="btn-check-app-update" type="button" class="btn-secondary-action" style="font-size: 0.76rem; padding: 5px 10px;">Check for App Updates</button>
         </div>
       </div>
       <div class="modal-footer">
