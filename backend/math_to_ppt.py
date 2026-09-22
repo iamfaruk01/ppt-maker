@@ -856,6 +856,11 @@ def generate(data, output_path):
     else:
         questions = []
 
+    ML = Inches(0.6)
+    content_top = Inches(0.4)
+    CW = Inches(13.333) - Inches(1.2)
+    CH = Inches(7.5) - content_top - Inches(0.45)
+
     for idx, q in enumerate(questions):
         slide = prs.slides.add_slide(prs.slide_layouts[6]) # blank layout
         
@@ -864,7 +869,7 @@ def generate(data, output_path):
         bg.solid()
         bg.fore_color.rgb = BG
 
-        # 2. Process Question Text and Display Equations
+        # 2. Process Question Text and Options
         raw_text = strip_citations(q.get('question', ''))
         raw_options = q.get('options', [])
         options  = [strip_citations(o) for o in raw_options]
@@ -880,185 +885,74 @@ def generate(data, output_path):
         clean_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*|\d+[\.:\-\)])\s*', '', raw_text, flags=re.IGNORECASE).strip()
         raw_text = f"{q_prefix} {clean_text}"
 
-        # Separate $$display$$ equations from text
-        blocks = []
-        last = 0
-        for m in re.finditer(r'\$\$(.+?)\$\$', raw_text, re.DOTALL):
-            if m.start() > last:
-                t = raw_text[last:m.start()].strip()
-                if t: blocks.append(('text', t))
-            blocks.append(('display', m.group(1).strip()))
-            last = m.end()
-        if last < len(raw_text):
-            t = raw_text[last:].strip()
-            if t: blocks.append(('text', t))
+        # Determine ideal proportional font size based on total question length
+        total_chars = len(raw_text)
+        has_as = is_assamese(raw_text)
 
-        # Position calculations: Start question right at top-left corner
-        content_top = Inches(0.4)
-        
-        # 1. Total visual character count to determine ideal proportional font size
-        total_chars = sum(len(bcontent) for btype, bcontent in blocks if btype == 'text')
-        has_assamese_q = is_assamese(raw_text)
-
-        if total_chars < 180:
-            q_font_pt = 22 if has_assamese_q else 21
-            cpl = 56
-            line_h = Inches(0.38)
-            tall_h = Inches(0.52)
-        elif total_chars < 320:
-            q_font_pt = 21 if has_assamese_q else 20
-            cpl = 62
-            line_h = Inches(0.35)
-            tall_h = Inches(0.48)
+        if total_chars < 200:
+            q_font_pt = 22 if has_as else 21
+        elif total_chars < 350:
+            q_font_pt = 21 if has_as else 20
         else:
-            q_font_pt = 19.5 if has_assamese_q else 19
-            cpl = 68
-            line_h = Inches(0.33)
-            tall_h = Inches(0.45)
+            q_font_pt = 19.5 if has_as else 19
 
         q_font_size = Pt(q_font_pt)
 
-        # 2. Precise word-wrap and line height estimation
-        total_text_lines = 0
-        total_tall_lines = 0
-        num_non_empty_paras = 0
+        # Convert $$display$$ equations into standalone lines
+        proc_text = re.sub(r'\$\$(.+?)\$\$', r'\n$\1$\n', raw_text)
 
-        for btype, bcontent in blocks:
-            if btype == 'text':
-                for line in bcontent.split('\n'):
-                    line_s = line.strip()
-                    if not line_s:
-                        continue
-                    num_non_empty_paras += 1
-                    is_tall = bool(re.search(r'\\(?:frac|binom|begin\{|sum|prod|int|lim)', line_s))
-                    
-                    # Clean representation of line for realistic wrapping estimation
-                    clean = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', lambda m: ' ' + ('X' * max(len(m.group(1)), len(m.group(2)))) + ' ', line_s)
-                    clean = re.sub(r'\\sqrt(?:\[[^\]]*\])?\{([^}]+)\}', lambda m: ' ' + ('X' * (len(m.group(1)) + 2)) + ' ', clean)
-                    clean = re.sub(r'\\begin\{[a-zA-Z*]+\}[\s\S]*?\\end\{[a-zA-Z*]+\}', ' ' + ('X' * 20) + ' ', clean)
-                    clean = re.sub(r'\\[a-zA-Z]+', 'XX', clean)
-                    clean = clean.replace('$', '')
-                    
-                    words = clean.split()
-                    if not words:
-                        continue
-                    cur_w = 0
-                    l_cnt = 1
-                    for w in words:
-                        wl = len(w)
-                        if cur_w == 0:
-                            cur_w = wl
-                        elif cur_w + 1 + wl <= cpl:
-                            cur_w += 1 + wl
-                        else:
-                            l_cnt += 1
-                            cur_w = wl
-                    total_text_lines += l_cnt
-                    if is_tall:
-                        total_tall_lines += min(l_cnt, 2)
-
-        normal_lines = max(0, total_text_lines - total_tall_lines)
-        para_gaps = max(0, num_non_empty_paras - 1)
-        q_text_h = normal_lines * line_h + total_tall_lines * tall_h + para_gaps * Inches(0.06) + Inches(0.04)
-        q_text_h = max(Inches(0.40), q_text_h)
-
-        # Add Native Text Box for the question text
-        tb = slide.shapes.add_textbox(ML, content_top, CW, q_text_h)
+        # 3. Add Single Unified Native Text Frame
+        # Placing question and options in the same text frame allows PowerPoint's native
+        # text layout engine to format exact paragraph positioning automatically.
+        # This completely eliminates both manual coordinate overlaps and large artificial gaps.
+        tb = slide.shapes.add_textbox(ML, content_top, CW, CH)
         tf = tb.text_frame
         tf.word_wrap = True
         tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
 
-        first_p = True
-        display_eqs = []
+        # Split into non-empty question lines/paragraphs
+        q_lines = [l.strip() for l in proc_text.split('\n') if l.strip()]
+        for l_idx, line in enumerate(q_lines):
+            p = tf.paragraphs[0] if l_idx == 0 else tf.add_paragraph()
+            is_last_q_line = (l_idx == len(q_lines) - 1)
+            # Natural, compact paragraph break between question and MCQ options: 14pt (0.19 in)
+            p.space_after = Pt(14) if is_last_q_line else Pt(5)
+            add_paragraph_runs(p, line, font_size=q_font_size, is_question_start=(l_idx == 0))
 
-        for btype, bcontent in blocks:
-            if btype == 'text':
-                # Split into paragraphs
-                for line in bcontent.split('\n'):
-                    line_s = line.strip()
-                    if not line_s:
-                        continue
-                    p = tf.paragraphs[0] if first_p else tf.add_paragraph()
-                    p.space_after = Pt(4)
-                    add_paragraph_runs(p, line_s, font_size=q_font_size, is_question_start=first_p)
-                    first_p = False
-            elif btype == 'display':
-                display_eqs.append(bcontent)
-
-        cur_y = content_top + q_text_h
-
-        # 4. Render and place any Display Equations directly below question text
-        if display_eqs:
-            cur_y += Inches(0.08)
-            for deq in display_eqs:
-                buf, dw, dh = render_display_eq(deq, fontsize=26)
-                if buf:
-                    dw_in = min(Inches(dw), Inches(7.0))
-                    dh_in = Inches(dh)
-                    dx = ML + Inches(0.25)
-                    slide.shapes.add_picture(buf, dx, cur_y, dw_in, dh_in)
-                    cur_y += dh_in + Inches(0.08)
-
-        # 5. MCQ Options (Naturally and compactly placed directly below question)
+        # 4. MCQ Options (Seamlessly following question with natural paragraph spacing)
         if is_mcq and options:
-            start_opt_y = cur_y + Inches(0.16)
-            cur_opt_y = start_opt_y
-            gap_y = Inches(0.12)
-
             for i in range(min(4, len(options))):
                 opt_str = str(options[i]).strip()
                 if not opt_str:
                     continue
 
-                norm_opt = normalize_fractions(opt_str)
-                opt_has_tall = bool(re.search(r'\\(?:frac|binom|begin\{|sum|int)', norm_opt))
-                clean_opt = latex_to_unicode(norm_opt.replace('$', ''))
+                p_opt = tf.add_paragraph()
+                p_opt.space_after = Pt(8)
 
-                # Calculate compact width so textbox does NOT stretch across the slide
-                opt_w = calc_option_width(LABELS[i], opt_str)
-                opt_chars = len(f"({LABELS[i]}) {clean_opt}")
-                opt_lines = 1
-                if opt_w >= CW and opt_chars > 65:
-                    opt_lines = max(1, (opt_chars + 50) // 55)
-
-                this_opt_h = Inches(0.36 * opt_lines + (0.12 if opt_has_tall else 0))
-
-                tb_opt = slide.shapes.add_textbox(ML, cur_opt_y, opt_w, this_opt_h)
-                tf_o = tb_opt.text_frame
-                tf_o.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-                tf_o.word_wrap = True if opt_w >= CW else False
-                tf_o.margin_left = Inches(0.04)
-                tf_o.margin_right = Inches(0.04)
-                tf_o.margin_top = Inches(0.02)
-                tf_o.margin_bottom = Inches(0.02)
-                p_o = tf_o.paragraphs[0]
-
-                # Label (A), (B), (C), (D)
-                r_lbl = p_o.add_run()
+                # Label (A), (B), (C), (D) in bold accent
+                r_lbl = p_opt.add_run()
                 r_lbl.text = f'({LABELS[i]}) '
                 set_run_font(r_lbl, 'Banikanta', size=Pt(20), bold=True, color=ACCENT)
 
                 # Set paragraph-level defRPr so OMML math inherits Pt(20) and ACCENT color
-                pPr = p_o._p.find('{http://schemas.openxmlformats.org/drawingml/2006/main}pPr')
+                pPr = p_opt._p.find('{http://schemas.openxmlformats.org/drawingml/2006/main}pPr')
                 if pPr is None:
                     pPr = parse_xml('<a:pPr xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:defRPr sz="2000"><a:solidFill><a:srgbClr val="63CAB7"/></a:solidFill></a:defRPr></a:pPr>')
-                    p_o._p.insert(0, pPr)
+                    p_opt._p.insert(0, pPr)
 
+                norm_opt = normalize_fractions(opt_str)
                 is_math = ('$' in norm_opt) or ('\\frac' in norm_opt) or ('\\sqrt' in norm_opt) or ('/' in norm_opt and re.search(r'[a-zA-Z0-9]/[a-zA-Z0-9]', norm_opt)) or re.search(r'^[a-zA-Z]\s*=\s*', norm_opt)
 
                 if '$' in norm_opt:
-                    add_paragraph_runs(p_o, norm_opt, font_size=Pt(20))
+                    add_paragraph_runs(p_opt, norm_opt, font_size=Pt(20))
                 elif is_math and not is_assamese(norm_opt):
-                    # Mathematical formula without $ delimiters (e.g. "F = (m/a)" or "m/a")
-                    add_paragraph_runs(p_o, f'${norm_opt}$', font_size=Pt(20))
+                    add_paragraph_runs(p_opt, f'${norm_opt}$', font_size=Pt(20))
                 else:
-                    c_r = p_o.add_run()
+                    c_r = p_opt.add_run()
                     c_r.text = norm_opt
                     set_run_font(c_r, 'Banikanta', size=Pt(20), color=WHITE)
 
-                cur_opt_y += this_opt_h + gap_y
-
-        # 6. Slide number footer
+        # 5. Slide number footer
         tb_f = slide.shapes.add_textbox(0, SH - Inches(0.4), SW, Inches(0.35))
         p_f = tb_f.text_frame.paragraphs[0]
         p_f.alignment = PP_ALIGN.CENTER
