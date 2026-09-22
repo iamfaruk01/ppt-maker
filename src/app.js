@@ -591,7 +591,7 @@ function renderSlide(idx) {
   const optsHtml = formatOptionsHtml(q);
 
   const yearTag = (q.year || '').trim();
-  const examDisplay = yearTag ? `[ ${yearTag} ]` : (metaInfo.exam_label || '');
+  const examDisplay = yearTag ? `[ ${yearTag} ]` : '';
 
   // Step 3 Carousel Slide
   if (slideCanvas) {

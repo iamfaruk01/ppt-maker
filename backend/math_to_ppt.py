@@ -940,28 +940,19 @@ def generate(data, output_path):
                 has_question_marks = ('?' in raw_text) or bool(re.search(r'^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])', raw_text, re.IGNORECASE))
                 is_note = (has_bullets or has_title_colon) and not has_question_marks
 
-        # 1b. Slide Top Header Row (Left: Exam / Subject, Right: Year Tag Badge)
-        has_header = bool(exam_lbl or year_tag or subject)
+        # 1b. Slide Top Header Row (Right: Exam Year Tag Badge ONLY if year_tag is present)
+        # Note: Never show subject, chapter, or exam label at the top of the slide.
+        has_header = bool(year_tag)
         if has_header:
-            left_lbl = exam_lbl if exam_lbl else (subject if subject else '')
-            if left_lbl:
-                tb_hl = slide.shapes.add_textbox(ML, Inches(0.30), Inches(7.5), Inches(0.35))
-                tb_hl.text_frame.margin_left = tb_hl.text_frame.margin_right = tb_hl.text_frame.margin_top = tb_hl.text_frame.margin_bottom = 0
-                p_hl = tb_hl.text_frame.paragraphs[0]
-                r_hl = p_hl.add_run()
-                r_hl.text = left_lbl
-                set_run_font(r_hl, 'Banikanta', size=Pt(11.5), color=MUTED)
+            tb_yr = slide.shapes.add_textbox(SW - ML - Inches(4.5), Inches(0.28), Inches(4.5), Inches(0.35))
+            tb_yr.text_frame.margin_left = tb_yr.text_frame.margin_right = tb_yr.text_frame.margin_top = tb_yr.text_frame.margin_bottom = 0
+            p_yr = tb_yr.text_frame.paragraphs[0]
+            p_yr.alignment = PP_ALIGN.RIGHT
+            r_yr = p_yr.add_run()
+            r_yr.text = f"[ {year_tag} ]"
+            set_run_font(r_yr, 'Banikanta', size=Pt(12), bold=True, color=ACCENT)
 
-            if year_tag:
-                tb_yr = slide.shapes.add_textbox(SW - ML - Inches(4.5), Inches(0.28), Inches(4.5), Inches(0.35))
-                tb_yr.text_frame.margin_left = tb_yr.text_frame.margin_right = tb_yr.text_frame.margin_top = tb_yr.text_frame.margin_bottom = 0
-                p_yr = tb_yr.text_frame.paragraphs[0]
-                p_yr.alignment = PP_ALIGN.RIGHT
-                r_yr = p_yr.add_run()
-                r_yr.text = f"[ {year_tag} ]"
-                set_run_font(r_yr, 'Banikanta', size=Pt(12), bold=True, color=ACCENT)
-
-        slide_content_top = Inches(0.80) if has_header else Inches(0.40)
+        slide_content_top = Inches(0.75) if has_header else Inches(0.40)
         slide_ch = Inches(7.5) - slide_content_top - Inches(0.45)
 
         q_num = q.get('id')
