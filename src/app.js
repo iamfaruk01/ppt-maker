@@ -9,6 +9,7 @@ Extract all content (handwritten notes, lecture notes, textbook pages, question 
     {
       "id": 1,
       "type": "note",
+      "year": "",
       "question": "<Topic Title or Heading>:\\n<Clear explanation, bullet points, conditions, and formulas. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": false,
       "options": [],
@@ -17,6 +18,7 @@ Extract all content (handwritten notes, lecture notes, textbook pages, question 
     {
       "id": 2,
       "type": "question",
+      "year": "<Exam year/source if mentioned in PDF/image, e.g. 'JEE Main 2023' or 'NEET 2022' or ''>",
       "question": "<Full question text. If bilingual, write English followed by (Assamese) in a continuous line. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": true,
       "options": [
@@ -30,6 +32,7 @@ Extract all content (handwritten notes, lecture notes, textbook pages, question 
     {
       "id": 3,
       "type": "question",
+      "year": "<Exam year/source if mentioned, e.g. 'JEE Main 2022' or ''>",
       "question": "<Numerical / integer problem with no options. Use $...$ for inline math and $$...$$ for display equations>",
       "is_mcq": false,
       "options": [],
@@ -50,14 +53,16 @@ CRITICAL RULES:
    - For questions, practice exercises, and exam problems, set "type": "question".
    - If multiple-choice (MCQ): set "is_mcq": true, provide clean values in "options" (never include "(A)", "A.", or "(B)" prefixes), and include the correct option in "answer" ("a", "b", "c", or "d").
    - If numerical / integer question (NO options): set "is_mcq": false, set "options": [], and put the numeric answer or solution value in "answer" (e.g. "25", "1.5", or "" if none).
-5. MATHEMATICS & FORMULAS (LaTeX):
+5. EXAM YEAR & SOURCE TAGS:
+   - If a question in the PDF/image has an exam name, year, or shift mentioned (e.g. "[JEE Main 2023]", "[NEET 2022]", "(CBSE 2020)", "[AHSEC 2019]"), ALWAYS extract it into the "year" field (e.g. "year": "JEE Main 2023").
+6. MATHEMATICS & FORMULAS (LaTeX):
    - Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\oint, \\\\begin{bmatrix}).
    - ALWAYS wrap all mathematical expressions, formulas, symbols, units, and equations in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$).
    - Keep complete equations together inside a single pair of $...$ (e.g. "$\\\\mu_s = 0.5$", "$m = 2\\\\,\\\\mathrm{kg}$") so they never break apart across lines.
    - Full standard LaTeX is supported: fractions (\\\\frac), radicals (\\\\sqrt), vectors (\\\\vec), subscripts/superscripts (x_1^2), matrices (\\\\begin{bmatrix}), cases (\\\\begin{cases}), limits (\\\\lim), integrals (\\\\int), summations (\\\\sum), and Greek letters (\\\\alpha, \\\\theta).
-6. BILINGUAL CONTENT:
+7. BILINGUAL CONTENT:
    - If the content is bilingual (e.g. English + Assamese/Hindi), format in a continuous line with English first followed by native script in parentheses: English text (Assamese text).
-7. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
+8. Never include citations like [cite: 1] or footnotes anywhere in the output.`;
 
 
 // ── Sample Data ─────────────────────────────────────────────────────────────
@@ -585,9 +590,12 @@ function renderSlide(idx) {
   const qHtml = formatQuestionHtml(q.question, isNote);
   const optsHtml = formatOptionsHtml(q);
 
+  const yearTag = (q.year || '').trim();
+  const examDisplay = yearTag ? `[ ${yearTag} ]` : (metaInfo.exam_label || '');
+
   // Step 3 Carousel Slide
   if (slideCanvas) {
-    if (slideExam) slideExam.textContent = metaInfo.exam_label || '';
+    if (slideExam) slideExam.textContent = examDisplay;
     if (slideQHeading) {
       if (isNote) {
         slideQHeading.textContent = `Note / Concept ${idx + 1}:`;
@@ -609,7 +617,7 @@ function renderSlide(idx) {
 
   // Full Preview Slide
   if (fullSlideCanvas) {
-    if (fullSlideExam) fullSlideExam.textContent = metaInfo.exam_label || '';
+    if (fullSlideExam) fullSlideExam.textContent = examDisplay;
     if (fullSlideQHeading) {
       if (isNote) {
         fullSlideQHeading.textContent = `Note / Concept ${idx + 1}:`;
@@ -808,6 +816,7 @@ function openFullPreview() {
     questions: questions.map(q => {
       const item = { id: q.id };
       if (q.type) item.type = q.type;
+      if (q.year) item.year = q.year;
       item.question = q.question;
       if (q.is_mcq !== undefined) item.is_mcq = q.is_mcq;
       if (q.options) item.options = q.options;
