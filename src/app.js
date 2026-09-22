@@ -26,6 +26,14 @@ Extract all content (handwritten notes, lecture notes, textbook pages, question 
         "<Option D text or math value without (D) prefix>"
       ],
       "answer": "a"
+    },
+    {
+      "id": 3,
+      "type": "question",
+      "question": "<Numerical / integer problem with no options. Use $...$ for inline math and $$...$$ for display equations>",
+      "is_mcq": false,
+      "options": [],
+      "answer": "<Optional numerical answer value, e.g. 15 or 4.5>"
     }
   ]
 }
@@ -38,10 +46,10 @@ CRITICAL RULES:
    - Expand common abbreviations (e.g. "w.r.t." -> "with respect to", "const." -> "constant", "temp." -> "temperature", "eqn" -> "equation") for professional presentation clarity.
    - Divide notes into logical slides: ONE core concept, law, definition, formula card, or derivation per slide (do not cram multiple unrelated topics onto a single slide).
    - For notes and theoretical topics, set "type": "note", "is_mcq": false, "options": [], and "answer": "". Start the "question" field with a clear topic heading followed by ":" or a newline.
-4. QUESTION PAPERS & MCQs:
-   - For questions and practice exercises, set "type": "question".
-   - If multiple-choice, set "is_mcq": true, provide clean values in "options" (never include "(A)", "A.", or "(B)" prefixes), and include the correct option in "answer" ("a", "b", "c", or "d").
-   - If non-MCQ / subjective question, set "is_mcq": false, "options": [], and "answer": "".
+4. QUESTION PAPERS, MCQs & NUMERICAL PROBLEMS:
+   - For questions, practice exercises, and exam problems, set "type": "question".
+   - If multiple-choice (MCQ): set "is_mcq": true, provide clean values in "options" (never include "(A)", "A.", or "(B)" prefixes), and include the correct option in "answer" ("a", "b", "c", or "d").
+   - If numerical / integer question (NO options): set "is_mcq": false, set "options": [], and put the numeric answer or solution value in "answer" (e.g. "25", "1.5", or "" if none).
 5. MATHEMATICS & FORMULAS (LaTeX):
    - Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\oint, \\\\begin{bmatrix}).
    - ALWAYS wrap all mathematical expressions, formulas, symbols, units, and equations in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$).
@@ -561,14 +569,34 @@ function renderSlide(idx) {
   currentSlideIdx = idx;
 
   const q = questions[idx];
-  const isNote = (q.type === 'note') || (q.is_note === true) || (!q.is_mcq && (!q.options || q.options.length === 0) && !/\?|^(?:what|which|calculate|find|state|define|explain|derive|prove|how|why)\b/i.test((q.question || '').trim()));
+  const qType = String(q.type || '').trim().toLowerCase();
+  let isNote = false;
+  if (qType === 'note' || q.is_note === true) {
+    isNote = true;
+  } else if (['question', 'numerical', 'integer', 'subjective', 'problem', 'exercise'].includes(qType)) {
+    isNote = false;
+  } else if (!q.is_mcq && (!q.options || q.options.length === 0)) {
+    const rawQ = q.question || '';
+    const hasBullets = /(?:^|\n)\s*[•\-\*]/.test(rawQ);
+    const hasTitleColon = /^[A-Z][A-Za-z0-9\s,&'\-()]+\s*:\s*(?:\n|$)/.test(rawQ);
+    const hasQuestionMarks = rawQ.includes('?') || /^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])/i.test(rawQ);
+    isNote = (hasBullets || hasTitleColon) && !hasQuestionMarks;
+  }
   const qHtml = formatQuestionHtml(q.question, isNote);
   const optsHtml = formatOptionsHtml(q);
 
   // Step 3 Carousel Slide
   if (slideCanvas) {
     if (slideExam) slideExam.textContent = metaInfo.exam_label || '';
-    if (slideQHeading) slideQHeading.textContent = isNote ? `Note / Concept ${idx + 1}:` : `Question ${idx + 1}:`;
+    if (slideQHeading) {
+      if (isNote) {
+        slideQHeading.textContent = `Note / Concept ${idx + 1}:`;
+      } else if (qType === 'numerical') {
+        slideQHeading.textContent = `Numerical Question ${idx + 1}:`;
+      } else {
+        slideQHeading.textContent = `Question ${idx + 1}:`;
+      }
+    }
     if (slideQContent) slideQContent.innerHTML = qHtml;
     if (slideOptsCont) slideOptsCont.innerHTML = optsHtml;
     if (slideFooterSub) slideFooterSub.textContent = metaInfo.subject || 'Physics';
@@ -582,7 +610,15 @@ function renderSlide(idx) {
   // Full Preview Slide
   if (fullSlideCanvas) {
     if (fullSlideExam) fullSlideExam.textContent = metaInfo.exam_label || '';
-    if (fullSlideQHeading) fullSlideQHeading.textContent = isNote ? `Note / Concept ${idx + 1}:` : `Question ${idx + 1}:`;
+    if (fullSlideQHeading) {
+      if (isNote) {
+        fullSlideQHeading.textContent = `Note / Concept ${idx + 1}:`;
+      } else if (qType === 'numerical') {
+        fullSlideQHeading.textContent = `Numerical Question ${idx + 1}:`;
+      } else {
+        fullSlideQHeading.textContent = `Question ${idx + 1}:`;
+      }
+    }
     if (fullSlideQContent) fullSlideQContent.innerHTML = qHtml;
     if (fullSlideOptsCont) fullSlideOptsCont.innerHTML = optsHtml;
     if (fullSlideFooterSub) fullSlideFooterSub.textContent = metaInfo.subject || 'Physics';
@@ -769,12 +805,15 @@ function openFullPreview() {
   const jsonObj = currentRawParsedObj || {
     subject: metaInfo.subject,
     exam_label: metaInfo.exam_label,
-    questions: questions.map(q => ({
-      id: q.id,
-      question: q.question,
-      options: q.options,
-      answer: q.answer || 'a'
-    }))
+    questions: questions.map(q => {
+      const item = { id: q.id };
+      if (q.type) item.type = q.type;
+      item.question = q.question;
+      if (q.is_mcq !== undefined) item.is_mcq = q.is_mcq;
+      if (q.options) item.options = q.options;
+      if (q.answer !== undefined) item.answer = q.answer;
+      return item;
+    })
   };
 
   const formattedStr = JSON.stringify(jsonObj, null, 2);

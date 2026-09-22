@@ -916,12 +916,21 @@ def generate(data, output_path):
         is_mcq   = q.get('is_mcq', len(options) > 0)
 
         # Determine whether this slide is a Note / Theory card or a Question
-        is_note = (q.get('type') == 'note') or (q.get('is_note') is True)
-        if not is_note and not is_mcq:
-            # Auto-detect if content is a note vs a subjective question
-            is_question_like = ('?' in raw_text) or bool(re.search(r'^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])', raw_text, re.IGNORECASE)) or bool(re.search(r'^\s*(?:what|which|calculate|find|state|define|explain|derive|prove|how|why)\b', raw_text, re.IGNORECASE))
-            if not is_question_like:
-                is_note = True
+        q_type = str(q.get('type', '')).strip().lower()
+        if q_type == 'note' or q.get('is_note') is True:
+            is_note = True
+        elif q_type in ['question', 'numerical', 'integer', 'subjective', 'problem', 'exercise']:
+            is_note = False
+        else:
+            # Auto-detect when type is not explicitly declared
+            if is_mcq:
+                is_note = False
+            else:
+                # Content has clear note structure: bullet points or "Title:\n" without question marks or question numbering
+                has_bullets = any(line.strip().startswith(('•', '-', '*')) for line in raw_text.splitlines())
+                has_title_colon = bool(re.match(r'^[A-Z][A-Za-z0-9\s,&\'\-()]+\s*:\s*(?:\n|$)', raw_text))
+                has_question_marks = ('?' in raw_text) or bool(re.search(r'^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])', raw_text, re.IGNORECASE))
+                is_note = (has_bullets or has_title_colon) and not has_question_marks
 
         q_num = q.get('id')
         if q_num is None or str(q_num).strip() == '':
