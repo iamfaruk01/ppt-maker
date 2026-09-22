@@ -32,7 +32,9 @@
           "python_runner.exe",
           "math_to_ppt.py",
           "Banikanta.ttf",
-          "install_font.bat"
+          "install_font.bat",
+          "MML2OMML.XSL",
+          "latex2mathml/**/*"
         ]
       }
     ],
