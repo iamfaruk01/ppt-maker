@@ -388,10 +388,13 @@ function parseAndLoad(rawText) {
     const isMcq = Boolean(q.is_mcq || opts.some(o => o.trim()));
     while (opts.length < 4) opts.push('');
     return {
-      id: idx + 1,
+      id: q.id !== undefined && q.id !== null ? q.id : idx + 1,
+      type: q.type ? String(q.type).trim() : '',
+      year: q.year ? String(q.year).trim() : '',
       question: normalizeMathFractions(stripCitations(q.question || '')),
       is_mcq: isMcq,
-      options: opts.slice(0, 4)
+      options: opts.slice(0, 4),
+      answer: q.answer !== undefined && q.answer !== null ? String(q.answer).trim() : ''
     };
   });
 
@@ -427,9 +430,13 @@ async function triggerGenerate() {
     subject: metaInfo.subject,
     exam_label: metaInfo.exam_label,
     questions: questions.map(q => ({
+      id: q.id,
+      type: q.type,
+      year: q.year,
       question: q.question,
       is_mcq: q.is_mcq,
-      options: q.is_mcq ? q.options : []
+      options: q.is_mcq ? q.options : [],
+      answer: q.answer
     }))
   };
 
@@ -771,9 +778,13 @@ async function handleDownloadPpt() {
         subject: metaInfo.subject,
         exam_label: metaInfo.exam_label,
         questions: questions.map(q => ({
+          id: q.id,
+          type: q.type,
+          year: q.year,
           question: q.question,
           is_mcq: q.is_mcq,
-          options: q.is_mcq ? q.options : []
+          options: q.is_mcq ? q.options : [],
+          answer: q.answer
         })),
         _output: saveTarget
       };

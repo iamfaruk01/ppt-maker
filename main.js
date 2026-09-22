@@ -301,6 +301,7 @@ ipcMain.handle('config:save', (event, cfg) => {
   const ok = saveConfig(cfg);
   if (ok && (cfg.github_repo !== undefined || cfg.github_token !== undefined)) {
     syncLatestScript();
+    configureAutoUpdater();
   }
   return ok;
 });
@@ -315,6 +316,27 @@ ipcMain.handle('font:install', () => {
 // ── Desktop App Auto-Updater (electron-updater) ──────────────────────────────
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
+
+function configureAutoUpdater() {
+  const cfg = loadConfig();
+  const token = (cfg.github_token && cfg.github_token.trim()) || process.env.GH_TOKEN;
+  const feedConfig = {
+    provider: 'github',
+    owner: 'iamfaruk01',
+    repo: 'ppt-maker'
+  };
+  if (token) {
+    feedConfig.token = token;
+    feedConfig.private = true;
+  }
+  try {
+    autoUpdater.setFeedURL(feedConfig);
+  } catch (e) {
+    console.error('Error setting autoUpdater feed URL:', e);
+  }
+}
+
+configureAutoUpdater();
 
 function emitUpdaterStatus(payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -362,6 +384,7 @@ ipcMain.handle('updater:check', async () => {
     return { status: 'dev', message: 'Auto-updates are active in packaged app builds.' };
   }
   try {
+    configureAutoUpdater();
     const res = await autoUpdater.checkForUpdates();
     return { status: 'checking', version: res?.updateInfo?.version };
   } catch (err) {

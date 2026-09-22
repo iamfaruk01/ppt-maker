@@ -876,8 +876,8 @@ def add_paragraph_runs(p, text, font_size=None, is_question_start=False, is_note
 
             first_text = False
 
-            # Check for trailing bracketed exam year tag like [JEE Main 2023] or (2021)
-            m_yr = re.search(r'(\s*\[[^\]]*(?:19|20)\d\d[^\]]*\]|\s*\[(?:JEE|NEET|CBSE|AHSEC|IIT|AIEEE|Board|PYQ)[^\]]*\]|\s*\((?:19|20)\d\d\))\s*$', tok, re.IGNORECASE)
+            # Check for trailing bracketed exam year tag like [H.S.'25], [JEE Main 2023], etc.
+            m_yr = re.search(r'(\s*\[[^\]]+\])\s*$', tok)
             if m_yr:
                 pre_text = tok[:m_yr.start()]
                 yr_text = m_yr.group(1).strip()
@@ -931,7 +931,7 @@ def generate(data, output_path):
 
         # Extract exam year / source tag (from q.year or end of question text)
         year_tag = str(q.get('year', '')).strip()
-        m_year_end = re.search(r'(\[(?:JEE|NEET|CBSE|AHSEC|IIT|AIEEE|Board|\d{4})[^\]]*\]|\((?:19|20)\d\d\))\s*$', raw_text, re.IGNORECASE)
+        m_year_end = re.search(r'(\[(?:JEE|NEET|CBSE|AHSEC|IIT|AIEEE|Board|H\.?S\.?|\d{4})[^\]]*\]|\((?:19|20)\d\d\))\s*$', raw_text, re.IGNORECASE)
         if m_year_end:
             if not year_tag:
                 year_tag = m_year_end.group(1).strip('[]() ')
