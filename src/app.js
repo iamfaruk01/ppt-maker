@@ -26,7 +26,7 @@ CRITICAL RULES:
 2. Do NOT write any conversational text, explanations, or notes before or after the code block.
 3. Escape all LaTeX backslashes inside JSON strings with double backslash (e.g. \\\\frac{a}{b}, \\\\sqrt{x}, \\\\vec{F}, \\\\sin^2\\\\theta, \\\\int, \\\\sum, \\\\begin{bmatrix}).
 4. If bilingual, write in a continuous line with English first followed by Assamese in parentheses: English text (Assamese text).
-5. For ALL mathematical expressions, formulas, symbols, units, and equations, ALWAYS wrap them in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$).
+5. For ALL mathematical expressions, formulas, symbols, units, and equations, ALWAYS wrap them in standard LaTeX $...$ or $$...$$ (e.g. $F = ma$, $\\\\frac{1}{2}mv^2$, $9.8\\\\,\\\\mathrm{m/s^2}$, $\\\\lambda = \\\\frac{h}{p}$). Always keep full equations together inside a single pair of $...$ (e.g. "$\\\\mu_s = 0.5$", "$m = 2\\\\,\\\\mathrm{kg}$") so they never break apart across lines.
 6. In "options", provide ONLY clean values (never include "(A)", "A.", or "(B)" prefixes). If an option is mathematical, wrap it in $...$ (e.g. "$25$ J", "$\\\\frac{a}{b}$").
 7. Full standard LaTeX is supported: fractions (\\\\frac), roots (\\\\sqrt, \\\\sqrt[n]), vectors (\\\\vec), subscripts/superscripts (x_1^2), matrices (\\\\begin{bmatrix}), cases (\\\\begin{cases}), limits (\\\\lim), summations (\\\\sum), integrals (\\\\int), and Greek letters (\\\\alpha, \\\\theta).
 8. Always include the correct option letter in "answer" ("a", "b", "c", or "d").

@@ -667,28 +667,6 @@ def latex_to_omml_ast(latex_str, color_hex="63CAB7", sz=2000):
     except Exception:
         return None
 
-def parse_latex_to_omml_xml(latex_str, color_hex="63CAB7", sz=2000):
-    """
-    Converts LaTeX to PowerPoint native OMML wrapped in DrawingML a14:m element.
-    Uses professional AST pipeline (latex2mathml + Microsoft MML2OMML.XSL)
-    with graceful fallback to direct token parser for malformed inputs.
-    """
-    s = latex_str.strip().strip('$')
-    s = normalize_fractions(s)
-
-    # 1. Try standard AST pipeline (compiler-grade MathML -> OMML)
-    try:
-        xml = latex_to_omml_ast(s, color_hex, sz)
-        if xml:
-            return xml
-    except Exception:
-        pass
-
-    # 2. Fallback to direct token parser for malformed or trick inputs
-    nodes = parse_math_tokens(s, color_hex, sz)
-    omml_body = "".join(nodes)
-    return f'<a14:m xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><m:oMath>{omml_body}</m:oMath></a14:m>'
-
 def latex_to_unicode(latex):
     """Converts inline LaTeX expressions into clean, readable Unicode math."""
     s = latex.strip()
@@ -711,6 +689,65 @@ def latex_to_unicode(latex):
     s = re.sub(r'\\frac\{([^}]+)\}\{([^}]+)\}', r'(\1/\2)', s)
     s = re.sub(r'\s+', ' ', s).strip()
     return s
+
+def parse_latex_to_omml_xml(latex_str, color_hex="63CAB7", sz=2000):
+    """
+    Converts LaTeX to PowerPoint native OMML wrapped in DrawingML a14:m element.
+    Uses professional AST pipeline (latex2mathml + Microsoft MML2OMML.XSL)
+    with graceful fallback to direct token parser for malformed inputs.
+    Prevents equations and formulas from breaking in between across lines
+    using OOXML <m:box><m:boxPr><m:noBreak m:val="on"/></m:boxPr><m:e>...</m:e></m:box>,
+    unless the equation is explicitly multi-line or longer than a single slide line (> 75 chars).
+    """
+    s = latex_str.strip().strip('$')
+    s = normalize_fractions(s)
+
+    # 1. Try standard AST pipeline (compiler-grade MathML -> OMML)
+    xml = None
+    try:
+        xml = latex_to_omml_ast(s, color_hex, sz)
+    except Exception:
+        pass
+
+    # 2. Fallback to direct token parser for malformed or trick inputs
+    if not xml:
+        nodes = parse_math_tokens(s, color_hex, sz)
+        omml_body = "".join(nodes)
+        xml = f'<a14:m xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><m:oMath>{omml_body}</m:oMath></a14:m>'
+
+    if not xml:
+        return None
+
+    # Check if this equation can fit on one line
+    # (Allow breaking only if it is explicitly multi-line with \\ or longer than 75 display characters)
+    clean_repr = latex_to_unicode(s)
+    is_multiline = ('\\\\' in s) or ('\\begin{' in s and 'matrix' not in s)
+    is_too_long = len(clean_repr) > 75
+
+    if is_multiline or is_too_long:
+        return xml
+
+    # Wrap oMath children in an unbreakable OOXML box:
+    # <m:box><m:boxPr><m:noBreak m:val="on"/></m:boxPr><m:e> ... </m:e></m:box>
+    try:
+        from lxml import etree
+        root = etree.fromstring(xml.encode('utf-8'))
+        m_ns = 'http://schemas.openxmlformats.org/officeDocument/2006/math'
+        omath = root.find(f'{{{m_ns}}}oMath')
+        if omath is not None and len(omath) > 0:
+            box = etree.Element(f'{{{m_ns}}}box')
+            boxPr = etree.SubElement(box, f'{{{m_ns}}}boxPr')
+            noBreak = etree.SubElement(boxPr, f'{{{m_ns}}}noBreak')
+            noBreak.set(f'{{{m_ns}}}val', 'on')
+            e_elem = etree.SubElement(box, f'{{{m_ns}}}e')
+            for child in list(omath):
+                e_elem.append(child)
+            omath.append(box)
+            return etree.tostring(root, encoding='utf-8').decode('utf-8')
+    except Exception:
+        pass
+
+    return xml
 
 def is_assamese(s):
     return any(('\u0900' <= c <= '\u09FF') for c in s)
@@ -812,6 +849,8 @@ def add_paragraph_runs(p, text, font_size=None, is_question_start=False):
             except Exception:
                 r = p.add_run()
                 clean_math = latex_to_unicode(math_expr)
+                if ('\\\\' not in math_expr) and len(clean_math) <= 75:
+                    clean_math = clean_math.replace(' ', '\u00A0')
                 r.text = clean_math
                 set_run_font(r, 'Cambria Math', size=font_size or Pt(21), italic=True, color=ACCENT)
         else:
