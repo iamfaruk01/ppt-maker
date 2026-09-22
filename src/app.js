@@ -515,7 +515,14 @@ function formatQuestionHtml(rawQuestion, isNote = false) {
       let lineHtml = '';
       segs.forEach(([type, content]) => {
         if (type === 'text') {
-          lineHtml += escHtml(content);
+          const mYr = content.match(/(\s*\[[^\]]*(?:19|20)\d\d[^\]]*\]|\s*\[(?:JEE|NEET|CBSE|AHSEC|IIT|AIEEE|Board|PYQ)[^\]]*\]|\s*\((?:19|20)\d\d\))\s*$/i);
+          if (mYr) {
+            const pre = content.slice(0, mYr.index);
+            const yr = mYr[1].trim();
+            lineHtml += escHtml(pre) + ` <b style="color: var(--accent-teal, #63CAB7); font-weight: 700;">${escHtml(yr)}</b>`;
+          } else {
+            lineHtml += escHtml(content);
+          }
         } else if (type === 'inline') {
           lineHtml += `<span class="slide-math-inline">\\(${escHtml(content)}\\)</span>`;
         } else if (type === 'display') {
@@ -587,11 +594,16 @@ function renderSlide(idx) {
     const hasQuestionMarks = rawQ.includes('?') || /^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])/i.test(rawQ);
     isNote = (hasBullets || hasTitleColon) && !hasQuestionMarks;
   }
-  const qHtml = formatQuestionHtml(q.question, isNote);
+  let questionText = q.question || '';
+  const yearTag = (q.year || '').trim();
+  const cleanYear = yearTag.replace(/^[\[\(]+|[\]\)]+$/g, '').trim();
+  if (cleanYear && !questionText.includes(cleanYear)) {
+    questionText = `${questionText.trim()} [${cleanYear}]`;
+  }
+  const qHtml = formatQuestionHtml(questionText, isNote);
   const optsHtml = formatOptionsHtml(q);
 
-  const yearTag = (q.year || '').trim();
-  const examDisplay = yearTag ? `[ ${yearTag} ]` : '';
+  const examDisplay = '';
 
   // Step 3 Carousel Slide
   if (slideCanvas) {

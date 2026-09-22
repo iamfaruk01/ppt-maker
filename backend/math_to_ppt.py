@@ -870,12 +870,26 @@ def add_paragraph_runs(p, text, font_size=None, is_question_start=False, is_note
                     first_text = False
                     remainder = m_q.group(2)
                     if remainder:
-                        r = p.add_run()
-                        r.text = remainder
-                        set_run_font(r, 'Banikanta', size=sz, color=col)
-                    continue
+                        tok = remainder
+                    else:
+                        continue
 
             first_text = False
+
+            # Check for trailing bracketed exam year tag like [JEE Main 2023] or (2021)
+            m_yr = re.search(r'(\s*\[[^\]]*(?:19|20)\d\d[^\]]*\]|\s*\[(?:JEE|NEET|CBSE|AHSEC|IIT|AIEEE|Board|PYQ)[^\]]*\]|\s*\((?:19|20)\d\d\))\s*$', tok, re.IGNORECASE)
+            if m_yr:
+                pre_text = tok[:m_yr.start()]
+                yr_text = m_yr.group(1).strip()
+                if pre_text:
+                    r = p.add_run()
+                    r.text = pre_text
+                    set_run_font(r, 'Banikanta', size=sz, bold=bold_val, color=col)
+                r_yr = p.add_run()
+                r_yr.text = f' {yr_text}'
+                set_run_font(r_yr, 'Banikanta', size=sz, bold=True, color=ACCENT)
+                continue
+
             r = p.add_run()
             r.text = tok
             set_run_font(r, 'Banikanta', size=sz, bold=bold_val, color=col)
@@ -940,19 +954,8 @@ def generate(data, output_path):
                 has_question_marks = ('?' in raw_text) or bool(re.search(r'^\s*(?:Q(?:uestion)?\s*\d+|\d+[\.:\-\)])', raw_text, re.IGNORECASE))
                 is_note = (has_bullets or has_title_colon) and not has_question_marks
 
-        # 1b. Slide Top Header Row (Right: Exam Year Tag Badge ONLY if year_tag is present)
-        # Note: Never show subject, chapter, or exam label at the top of the slide.
-        has_header = bool(year_tag)
-        if has_header:
-            tb_yr = slide.shapes.add_textbox(SW - ML - Inches(4.5), Inches(0.28), Inches(4.5), Inches(0.35))
-            tb_yr.text_frame.margin_left = tb_yr.text_frame.margin_right = tb_yr.text_frame.margin_top = tb_yr.text_frame.margin_bottom = 0
-            p_yr = tb_yr.text_frame.paragraphs[0]
-            p_yr.alignment = PP_ALIGN.RIGHT
-            r_yr = p_yr.add_run()
-            r_yr.text = f"[ {year_tag} ]"
-            set_run_font(r_yr, 'Banikanta', size=Pt(12), bold=True, color=ACCENT)
-
-        slide_content_top = Inches(0.75) if has_header else Inches(0.40)
+        # 1b. Slide Layout: Clean top margin without any top header
+        slide_content_top = Inches(0.40)
         slide_ch = Inches(7.5) - slide_content_top - Inches(0.45)
 
         q_num = q.get('id')
@@ -965,6 +968,11 @@ def generate(data, output_path):
             raw_text = f"{q_prefix} {clean_text}"
         else:
             raw_text = re.sub(r'^(?:Q(?:uestion)?\s*\d+[\.:\-\)]*)\s*', '', raw_text, flags=re.IGNORECASE).strip()
+
+        # Show exam year in brackets at the end of the question
+        clean_year = year_tag.strip('[]() ')
+        if clean_year:
+            raw_text = f"{raw_text.rstrip()} [{clean_year}]"
 
         # Determine ideal proportional font size based on total question length
         total_chars = len(raw_text)
